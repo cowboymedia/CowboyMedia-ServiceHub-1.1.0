@@ -544,13 +544,19 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ message: "Service not found" });
       if (req.body.status && req.body.status !== existing.status) {
         const allUsers = await storage.getAllUsers();
-        for (const u of allUsers.filter(u => u.role === "customer")) {
+        const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(existing.id));
+        for (const u of subscribedCustomers) {
           sendPushToUser(u.id, {
             title: "Service Status Update",
             body: `${updated.name}: ${updated.status}`,
             url: "/services",
             tag: `service-${updated.id}`,
           });
+          if (u.email) {
+            sendEmail(u.email, `Service Status Update: ${updated.name}`,
+              `<h2>Service Status Update</h2><p>The service <strong>${updated.name}</strong> status has changed to <strong>${updated.status}</strong>.</p>`
+            );
+          }
         }
       }
       res.json(updated);
@@ -573,13 +579,19 @@ export async function registerRoutes(
       const alert = await storage.createAlert(req.body);
       broadcast({ type: "new_alert", alert });
       const allUsers = await storage.getAllUsers();
-      for (const u of allUsers.filter(u => u.role === "customer")) {
+      const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(alert.serviceId));
+      for (const u of subscribedCustomers) {
         sendPushToUser(u.id, {
           title: "New Service Alert",
           body: alert.title,
           url: `/alerts/${alert.id}`,
           tag: `alert-${alert.id}`,
         });
+        if (u.email) {
+          sendEmail(u.email, `New Service Alert: ${alert.title}`,
+            `<h2>New Service Alert</h2><p><strong>${alert.title}</strong></p><p>${alert.description}</p>`
+          );
+        }
       }
       res.json(alert);
     } catch (e: any) {
@@ -603,7 +615,8 @@ export async function registerRoutes(
       const alert = await storage.getAlert(req.params.id);
       if (alert) {
         const allUsers = await storage.getAllUsers();
-        for (const u of allUsers.filter(u => u.role === "customer")) {
+        const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(alert.serviceId));
+        for (const u of subscribedCustomers) {
           sendPushToUser(u.id, {
             title: `Alert Update: ${alert.title}`,
             body: req.body.message,
@@ -634,6 +647,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/admin/alerts/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteAlert(req.params.id);
+      res.json({ message: "Alert deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/admin/news", requireAdmin, upload.single("image"), async (req, res) => {
     try {
       const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
@@ -652,6 +674,12 @@ export async function registerRoutes(
           url: `/news/${story.id}`,
           tag: `news-${story.id}`,
         });
+      }
+      const customerEmails = allUsers.filter(u => u.role === "customer" && u.email).map(u => u.email);
+      if (customerEmails.length > 0) {
+        sendEmailToMultiple(customerEmails, `News: ${story.title}`,
+          `<h2>${story.title}</h2><p>${story.content}</p>`
+        );
       }
       res.json(story);
     } catch (e: any) {

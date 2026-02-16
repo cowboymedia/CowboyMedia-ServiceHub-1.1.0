@@ -91,6 +91,7 @@ shared/
 - `GET /api/tickets/:id/messages` - Ticket messages
 - `POST /api/tickets/:id/messages` - Send message (multipart, sends push+email notifications)
 - `DELETE /api/admin/tickets/:id` - Delete closed ticket (admin only)
+- `DELETE /api/admin/alerts/:id` - Delete alert and updates (admin only)
 - `POST /api/push/subscribe` - Subscribe to push notifications
 - `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 - `GET /api/push/vapid-key` - Get VAPID public key
@@ -101,10 +102,10 @@ shared/
 - **Admin replies to ticket**: Push + email to customer
 - **Customer replies to ticket**: Push + email to all admins
 - **Ticket closed**: Push + email to all admins
-- **New news story posted**: Push to all customers
-- **Service status changed**: Push to all customers
-- **New service alert created**: Push to all customers
-- **Alert updated**: Push to all customers
+- **New news story posted**: Push + email to all customers
+- **Service status changed**: Push + email to subscribed customers
+- **New service alert created**: Push + email to subscribed customers
+- **Alert updated**: Push to subscribed customers
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string

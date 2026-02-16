@@ -30,6 +30,7 @@ export interface IStorage {
   getAlert(id: string): Promise<ServiceAlert | undefined>;
   createAlert(alert: InsertServiceAlert): Promise<ServiceAlert>;
   updateAlert(id: string, data: Partial<ServiceAlert>): Promise<ServiceAlert | undefined>;
+  deleteAlert(id: string): Promise<void>;
 
   getAlertUpdates(alertId: string): Promise<AlertUpdate[]>;
   createAlertUpdate(update: InsertAlertUpdate): Promise<AlertUpdate>;
@@ -126,6 +127,11 @@ export class DatabaseStorage implements IStorage {
   async updateAlert(id: string, data: Partial<ServiceAlert>): Promise<ServiceAlert | undefined> {
     const [updated] = await db.update(serviceAlerts).set(data).where(eq(serviceAlerts.id, id)).returning();
     return updated;
+  }
+
+  async deleteAlert(id: string): Promise<void> {
+    await db.delete(alertUpdates).where(eq(alertUpdates.alertId, id));
+    await db.delete(serviceAlerts).where(eq(serviceAlerts.id, id));
   }
 
   async getAlertUpdates(alertId: string): Promise<AlertUpdate[]> {
