@@ -374,6 +374,42 @@ export async function registerRoutes(
     res.json(messages);
   });
 
+  app.get("/api/tickets/:id/customer", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const ticket = await storage.getTicket(req.params.id);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      const customer = await storage.getUser(ticket.customerId);
+      if (!customer) return res.status(404).json({ message: "Customer not found" });
+      const { password: _, ...safeCustomer } = customer;
+      res.json({
+        customer: {
+          id: safeCustomer.id,
+          username: safeCustomer.username,
+          email: safeCustomer.email,
+          fullName: safeCustomer.fullName,
+          role: safeCustomer.role,
+        },
+        ticket: {
+          id: ticket.id,
+          subject: ticket.subject,
+          description: ticket.description,
+          serviceId: ticket.serviceId,
+          status: ticket.status,
+          priority: ticket.priority,
+          createdAt: ticket.createdAt,
+          closedAt: ticket.closedAt,
+          imageUrl: ticket.imageUrl,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tickets/:id/messages", requireAuth, upload.single("image"), async (req, res) => {
     try {
       const ticket = await storage.getTicket(req.params.id);
