@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme-provider";
@@ -12,13 +12,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { User, Mail, Moon, Sun, Bell } from "lucide-react";
+import { isPushSupported, subscribeToPush, unsubscribeFromPush, isSubscribedToPush } from "@/lib/push-notifications";
+import { User, Mail, Moon, Sun, Bell, BellOff, Download, Smartphone } from "lucide-react";
 import type { Service } from "@shared/schema";
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   const { data: services, isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -27,6 +33,51 @@ export default function ProfilePage() {
   const [selectedServices, setSelectedServices] = useState<string[]>(
     user?.subscribedServices || []
   );
+
+  useEffect(() => {
+    isPushSupported().then(setPushSupported);
+    isSubscribedToPush().then(setPushEnabled);
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handlePushToggle = async (checked: boolean) => {
+    setPushLoading(true);
+    try {
+      if (checked) {
+        const success = await subscribeToPush();
+        if (success) {
+          setPushEnabled(true);
+          toast({ title: "Push notifications enabled" });
+        } else {
+          toast({ title: "Could not enable notifications", description: "Please allow notifications in your browser settings", variant: "destructive" });
+        }
+      } else {
+        await unsubscribeFromPush();
+        setPushEnabled(false);
+        toast({ title: "Push notifications disabled" });
+      }
+    } catch {
+      toast({ title: "Error toggling notifications", variant: "destructive" });
+    }
+    setPushLoading(false);
+  };
+
+  const handleInstallApp = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const result = await installPrompt.userChoice;
+      if (result.outcome === "accepted") {
+        setInstallPrompt(null);
+        toast({ title: "App installed successfully" });
+      }
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: async (subscribedServices: string[]) => {
@@ -80,6 +131,29 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      {installPrompt && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Smartphone className="w-4 h-4" />
+              Install App
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Add to Home Screen</p>
+                <p className="text-xs text-muted-foreground">Install ServiceHub for a native app experience</p>
+              </div>
+              <Button onClick={handleInstallApp} data-testid="button-install-app">
+                <Download className="w-4 h-4 mr-2" />
+                Install
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -101,6 +175,31 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      {pushSupported && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              Push Notifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Enable Push Notifications</p>
+                <p className="text-xs text-muted-foreground">Receive alerts for subscribed services and ticket updates</p>
+              </div>
+              <Switch
+                checked={pushEnabled}
+                onCheckedChange={handlePushToggle}
+                disabled={pushLoading}
+                data-testid="switch-push-notifications"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { promisify } from "util";
+import webpush from "web-push";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -81,6 +82,46 @@ function broadcast(data: any) {
       client.send(message);
     }
   });
+}
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:admin@servicehub.app",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
+
+async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }) {
+  try {
+    const subs = await storage.getPushSubscriptionsByUser(userId);
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify(payload)
+        );
+      } catch (err: any) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          await storage.deletePushSubscription(sub.endpoint);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Push notification error:", e);
+  }
+}
+
+async function sendPushToSubscribedUsers(serviceId: string, payload: { title: string; body: string; url?: string; tag?: string }) {
+  try {
+    const allUsers = await storage.getAllUsers();
+    const subscribedUsers = allUsers.filter(u => u.subscribedServices?.includes(serviceId));
+    for (const user of subscribedUsers) {
+      await sendPushToUser(user.id, payload);
+    }
+  } catch (e) {
+    console.error("Push notification error:", e);
+  }
 }
 
 export async function registerRoutes(
@@ -303,6 +344,24 @@ export async function registerRoutes(
         imageUrl: imageUrl || null,
       });
       broadcast({ type: "ticket_message", ticketId: req.params.id, message });
+      if (user.role === "admin") {
+        sendPushToUser(ticket.customerId, {
+          title: "New Ticket Reply",
+          body: `Reply on: ${ticket.subject}`,
+          url: `/tickets/${ticket.id}`,
+          tag: `ticket-${ticket.id}`,
+        });
+      } else {
+        const admins = await storage.getAllUsers();
+        for (const admin of admins.filter(u => u.role === "admin")) {
+          sendPushToUser(admin.id, {
+            title: "New Ticket Message",
+            body: `${user.fullName}: ${ticket.subject}`,
+            url: `/tickets/${ticket.id}`,
+            tag: `ticket-${ticket.id}`,
+          });
+        }
+      }
       res.json(message);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -397,6 +456,12 @@ export async function registerRoutes(
     try {
       const alert = await storage.createAlert(req.body);
       broadcast({ type: "new_alert", alert });
+      sendPushToSubscribedUsers(alert.serviceId, {
+        title: "New Service Alert",
+        body: alert.title,
+        url: `/alerts/${alert.id}`,
+        tag: `alert-${alert.id}`,
+      });
       res.json(alert);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -416,6 +481,15 @@ export async function registerRoutes(
         await storage.updateAlert(req.params.id, { status: req.body.status });
       }
       broadcast({ type: "alert_update", alertId: req.params.id, update });
+      const alert = await storage.getAlert(req.params.id);
+      if (alert) {
+        sendPushToSubscribedUsers(alert.serviceId, {
+          title: `Alert Update: ${alert.title}`,
+          body: req.body.message,
+          url: `/alerts/${req.params.id}`,
+          tag: `alert-${req.params.id}`,
+        });
+      }
       res.json(update);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -461,6 +535,41 @@ export async function registerRoutes(
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
+  });
+
+  // Push notification subscription routes
+  app.post("/api/push/subscribe", requireAuth, async (req, res) => {
+    try {
+      const { endpoint, keys } = req.body;
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ message: "Invalid subscription" });
+      }
+      const sub = await storage.createPushSubscription({
+        userId: req.session.userId!,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+      });
+      res.json(sub);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/push/unsubscribe", requireAuth, async (req, res) => {
+    try {
+      const { endpoint } = req.body;
+      if (endpoint) {
+        await storage.deletePushSubscription(endpoint);
+      }
+      res.json({ message: "Unsubscribed" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/push/vapid-key", (_req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
   });
 
   // WebSocket

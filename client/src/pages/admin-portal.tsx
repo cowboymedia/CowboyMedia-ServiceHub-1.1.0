@@ -185,6 +185,7 @@ function UsersTab() {
         <Skeleton className="h-40" />
       ) : (
         <Card>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -236,6 +237,7 @@ function UsersTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       )}
     </div>
@@ -335,6 +337,7 @@ function ServicesTab() {
 
       {isLoading ? <Skeleton className="h-40" /> : (
         <Card>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -364,6 +367,7 @@ function ServicesTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       )}
     </div>

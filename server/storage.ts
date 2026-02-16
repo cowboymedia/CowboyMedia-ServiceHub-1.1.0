@@ -6,7 +6,8 @@ import {
   type NewsStory, type InsertNewsStory,
   type Ticket, type InsertTicket,
   type TicketMessage, type InsertTicketMessage,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages,
+  type PushSubscription, type InsertPushSubscription,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, pushSubscriptions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -46,6 +47,12 @@ export interface IStorage {
 
   getTicketMessages(ticketId: string): Promise<TicketMessage[]>;
   createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage>;
+
+  getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]>;
+  getAllPushSubscriptions(): Promise<PushSubscription[]>;
+  createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
+  deletePushSubscription(endpoint: string): Promise<void>;
+  getPushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscription | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -176,6 +183,33 @@ export class DatabaseStorage implements IStorage {
   async createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage> {
     const [created] = await db.insert(ticketMessages).values(message).returning();
     return created;
+  }
+
+  async getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]> {
+    return db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async getAllPushSubscriptions(): Promise<PushSubscription[]> {
+    return db.select().from(pushSubscriptions);
+  }
+
+  async createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription> {
+    const existing = await this.getPushSubscriptionByEndpoint(sub.endpoint);
+    if (existing) {
+      const [updated] = await db.update(pushSubscriptions).set(sub).where(eq(pushSubscriptions.endpoint, sub.endpoint)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(pushSubscriptions).values(sub).returning();
+    return created;
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+
+  async getPushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscription | undefined> {
+    const [sub] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    return sub;
   }
 }
 
