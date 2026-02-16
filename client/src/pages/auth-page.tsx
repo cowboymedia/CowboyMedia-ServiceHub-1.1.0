@@ -63,7 +63,7 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <img src={logoImg} alt="CowboyMedia" className="mx-auto h-24 mb-3" />
+            <img src={logoImg} alt="CowboyMedia" className="mx-auto h-32 mb-3" />
             <p className="text-sm text-muted-foreground mt-1">Monitor services, get alerts, submit tickets</p>
           </CardHeader>
           <CardContent>
