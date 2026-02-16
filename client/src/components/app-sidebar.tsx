@@ -38,7 +38,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2.5">
-          <img src={logoImg} alt="CowboyMedia" className="h-12 flex-shrink-0" />
+          <img src={logoImg} alt="CowboyMedia" className="h-20 flex-shrink-0" />
         </div>
       </SidebarHeader>
 
