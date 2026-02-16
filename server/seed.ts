@@ -14,7 +14,14 @@ async function hashPassword(password: string): Promise<string> {
 
 export async function seed() {
   const existingUsers = await storage.getAllUsers();
-  if (existingUsers.length > 0) return;
+  if (existingUsers.length > 0) {
+    const adminUser = existingUsers.find(u => u.username === "admin");
+    if (adminUser && adminUser.role !== "admin") {
+      await storage.updateUser(adminUser.id, { role: "admin" });
+      console.log("Restored admin role for user 'admin'");
+    }
+    return;
+  }
 
   console.log("Seeding database...");
 
