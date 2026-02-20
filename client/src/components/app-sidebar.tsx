@@ -11,6 +11,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,15 @@ import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_202601
 export function AppSidebar() {
   const { user, logout, isAdmin } = useAuth();
   const [location] = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      requestAnimationFrame(() => {
+        setOpenMobile(false);
+      });
+    }
+  };
 
   const customerItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -50,7 +60,7 @@ export function AppSidebar() {
               {customerItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={location === item.url || (item.url !== "/" && location.startsWith(item.url))}>
-                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
+                    <Link href={item.url} onClick={handleNavClick} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
                       <item.icon className="w-4 h-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -69,7 +79,7 @@ export function AppSidebar() {
                 {adminItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={location === item.url || location.startsWith(item.url)}>
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
+                      <Link href={item.url} onClick={handleNavClick} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
                         <item.icon className="w-4 h-4" />
                         <span>{item.title}</span>
                       </Link>
