@@ -6,11 +6,12 @@ import {
   type NewsStory, type InsertNewsStory,
   type Ticket, type InsertTicket,
   type TicketMessage, type InsertTicketMessage,
+  type PrivateMessage, type InsertPrivateMessage,
   type PushSubscription, type InsertPushSubscription,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, pushSubscriptions,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, pushSubscriptions,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -50,6 +51,11 @@ export interface IStorage {
 
   getTicketMessages(ticketId: string): Promise<TicketMessage[]>;
   createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage>;
+
+  createPrivateMessage(message: InsertPrivateMessage): Promise<PrivateMessage>;
+  getPrivateMessagesByUser(userId: string): Promise<PrivateMessage[]>;
+  getUnreadPrivateMessageCount(userId: string): Promise<number>;
+  markPrivateMessageRead(id: string): Promise<PrivateMessage | undefined>;
 
   getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
@@ -196,6 +202,25 @@ export class DatabaseStorage implements IStorage {
   async createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage> {
     const [created] = await db.insert(ticketMessages).values(message).returning();
     return created;
+  }
+
+  async createPrivateMessage(message: InsertPrivateMessage): Promise<PrivateMessage> {
+    const [created] = await db.insert(privateMessages).values(message).returning();
+    return created;
+  }
+
+  async getPrivateMessagesByUser(userId: string): Promise<PrivateMessage[]> {
+    return db.select().from(privateMessages).where(eq(privateMessages.recipientId, userId)).orderBy(desc(privateMessages.createdAt));
+  }
+
+  async getUnreadPrivateMessageCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(privateMessages).where(and(eq(privateMessages.recipientId, userId), isNull(privateMessages.readAt)));
+    return result[0]?.count ?? 0;
+  }
+
+  async markPrivateMessageRead(id: string): Promise<PrivateMessage | undefined> {
+    const [updated] = await db.update(privateMessages).set({ readAt: new Date() }).where(eq(privateMessages.id, id)).returning();
+    return updated;
   }
 
   async getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]> {

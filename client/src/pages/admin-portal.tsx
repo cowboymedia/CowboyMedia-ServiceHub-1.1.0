@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send } from "lucide-react";
 import type { User, Service, ServiceAlert, NewsStory } from "@shared/schema";
 
 const createServiceSchema = z.object({
@@ -682,6 +682,90 @@ function NewsTab() {
   );
 }
 
+const sendMessageSchema = z.object({
+  recipientId: z.string().min(1, "Recipient is required"),
+  subject: z.string().min(1, "Subject is required"),
+  body: z.string().min(1, "Message is required"),
+});
+
+function MessagesTab() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+  });
+
+  const customers = users?.filter((u) => u.role === "customer") || [];
+
+  const form = useForm({
+    resolver: zodResolver(sendMessageSchema),
+    defaultValues: { recipientId: "", subject: "", body: "" },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof sendMessageSchema>) => {
+      await apiRequest("POST", "/api/admin/private-messages", data);
+    },
+    onSuccess: () => {
+      setDialogOpen(false);
+      form.reset();
+      toast({ title: "Message sent successfully" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="font-semibold">Private Messages</h3>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" data-testid="button-send-message"><Send className="w-4 h-4 mr-1" /> Send Message</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Send Private Message</DialogTitle></DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit((d) => sendMutation.mutate(d))} className="space-y-3">
+                <FormField control={form.control} name="recipientId" render={({ field }) => (
+                  <FormItem><FormLabel>Recipient</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger data-testid="select-message-recipient"><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {customers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>{u.fullName} (@{u.username})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  <FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="subject" render={({ field }) => (
+                  <FormItem><FormLabel>Subject</FormLabel><FormControl><Input data-testid="input-message-subject" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="body" render={({ field }) => (
+                  <FormItem><FormLabel>Message</FormLabel><FormControl><Textarea className="min-h-[120px]" data-testid="input-message-body" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <Button type="submit" className="w-full" disabled={sendMutation.isPending} data-testid="button-submit-message">
+                  {sendMutation.isPending ? "Sending..." : "Send Message"}
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center py-6">
+            <Mail className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Use the "Send Message" button to send a private message to any customer. They will receive a push notification, email, and in-app alert.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin } = useAuth();
 
@@ -699,7 +783,7 @@ export default function AdminPortal() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold" data-testid="text-admin-title">Admin Portal</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage users, services, alerts, and news</p>
+        <p className="text-sm text-muted-foreground mt-1">Manage users, services, alerts, news, and messages</p>
       </div>
 
       <Tabs defaultValue="users">
@@ -708,11 +792,13 @@ export default function AdminPortal() {
           <TabsTrigger value="services" data-testid="tab-admin-services"><Server className="w-4 h-4 mr-1" /> Services</TabsTrigger>
           <TabsTrigger value="alerts" data-testid="tab-admin-alerts"><AlertTriangle className="w-4 h-4 mr-1" /> Alerts</TabsTrigger>
           <TabsTrigger value="news" data-testid="tab-admin-news"><Newspaper className="w-4 h-4 mr-1" /> News</TabsTrigger>
+          <TabsTrigger value="messages" data-testid="tab-admin-messages"><Mail className="w-4 h-4 mr-1" /> Messages</TabsTrigger>
         </TabsList>
         <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
         <TabsContent value="services" className="mt-4"><ServicesTab /></TabsContent>
         <TabsContent value="alerts" className="mt-4"><AlertsTab /></TabsContent>
         <TabsContent value="news" className="mt-4"><NewsTab /></TabsContent>
+        <TabsContent value="messages" className="mt-4"><MessagesTab /></TabsContent>
       </Tabs>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useAuth } from "@/lib/auth";
 import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -14,14 +15,22 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Activity, AlertTriangle, Newspaper, MessageSquare, User, Shield, LogOut } from "lucide-react";
+import { LayoutDashboard, Activity, AlertTriangle, Newspaper, MessageSquare, User, Shield, LogOut, Mail } from "lucide-react";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 
 export function AppSidebar() {
   const { user, logout, isAdmin } = useAuth();
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/private-messages/unread-count"],
+    refetchInterval: 30000,
+    enabled: !!user && user.role !== "admin",
+  });
+  const unreadCount = unreadData?.count ?? 0;
 
   const handleNavClick = () => {
     if (isMobile) {
@@ -37,6 +46,7 @@ export function AppSidebar() {
     { title: "Alerts", url: "/alerts", icon: AlertTriangle },
     { title: "News", url: "/news", icon: Newspaper },
     { title: "Tickets", url: "/tickets", icon: MessageSquare },
+    { title: "Messages", url: "/messages", icon: Mail },
     { title: "Profile", url: "/profile", icon: User },
   ];
 
@@ -62,7 +72,12 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild isActive={location === item.url || (item.url !== "/" && location.startsWith(item.url))}>
                     <Link href={item.url} onClick={handleNavClick} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
                       <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                      <span className="flex-1">{item.title}</span>
+                      {item.title === "Messages" && unreadCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-5 flex items-center justify-center px-1" data-testid="badge-unread-messages">
+                          {unreadCount}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

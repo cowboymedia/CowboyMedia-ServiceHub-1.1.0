@@ -24,7 +24,9 @@ A comprehensive service status monitoring and support platform built as a Progre
 - Photo uploads for tickets, messages, and news
 - Dark/light mode toggle
 - Image lightbox for enlarging photos
-- Admin portal: user/service/alert/news management
+- Admin portal: user/service/alert/news/private-message management
+- Private messaging: admin can send private messages to customers (push + email + in-app popup)
+- Customer message center with unread badge in sidebar
 - Mobile-responsive design with safe area support
 
 ## Default Credentials
@@ -92,6 +94,10 @@ shared/
 - `POST /api/tickets/:id/messages` - Send message (multipart, sends push+email notifications)
 - `DELETE /api/admin/tickets/:id` - Delete closed ticket (admin only)
 - `DELETE /api/admin/alerts/:id` - Delete alert and updates (admin only)
+- `POST /api/admin/private-messages` - Send private message to customer (admin only, triggers push+email+WS)
+- `GET /api/private-messages` - Get current user's private messages
+- `GET /api/private-messages/unread-count` - Get unread message count
+- `PATCH /api/private-messages/:id/read` - Mark message as read
 - `POST /api/push/subscribe` - Subscribe to push notifications
 - `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 - `GET /api/push/vapid-key` - Get VAPID public key

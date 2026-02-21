@@ -711,6 +711,80 @@ export async function registerRoutes(
     }
   });
 
+  // Private messages routes
+  app.post("/api/admin/private-messages", requireAdmin, async (req, res) => {
+    try {
+      const { recipientId, subject, body } = req.body;
+      if (!recipientId || !subject || !body) {
+        return res.status(400).json({ message: "recipientId, subject, and body are required" });
+      }
+      const recipient = await storage.getUser(recipientId);
+      if (!recipient) return res.status(404).json({ message: "Recipient not found" });
+
+      const sender = await storage.getUser(req.session.userId!);
+      const message = await storage.createPrivateMessage({
+        recipientId,
+        senderId: req.session.userId!,
+        subject,
+        body,
+      });
+
+      broadcast({ type: "private_message", recipientId, messageId: message.id, subject: message.subject });
+
+      sendPushToUser(recipientId, {
+        title: "New Private Message",
+        body: `${sender?.fullName}: ${subject}`,
+        url: "/messages",
+        tag: `pm-${message.id}`,
+      });
+
+      if (recipient.email && sender) {
+        sendEmail(recipient.email, `Private Message from ${sender.username}`,
+          `<h2>New Private Message</h2>
+<p>You have received a private message from <strong>${sender.fullName} (@${sender.username})</strong>.</p>
+<p><strong>Subject:</strong> ${subject}</p>
+<p><strong>Message:</strong></p>
+<p>${body}</p>
+<p>Log in to ServiceHub to view and manage your messages.</p>`
+        );
+      }
+
+      res.json(message);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/private-messages", requireAuth, async (req, res) => {
+    try {
+      const messages = await storage.getPrivateMessagesByUser(req.session.userId!);
+      res.json(messages);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/private-messages/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadPrivateMessageCount(req.session.userId!);
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/private-messages/:id/read", requireAuth, async (req, res) => {
+    try {
+      const messages = await storage.getPrivateMessagesByUser(req.session.userId!);
+      const msg = messages.find(m => m.id === req.params.id);
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+      const updated = await storage.markPrivateMessageRead(req.params.id);
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Push notification subscription routes
   app.post("/api/push/subscribe", requireAuth, async (req, res) => {
     try {

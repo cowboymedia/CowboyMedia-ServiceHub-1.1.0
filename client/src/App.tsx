@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Smartphone, BellRing, Settings } from "lucide-react";
+import { Smartphone, BellRing, Settings, Mail } from "lucide-react";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
@@ -26,6 +26,7 @@ import TicketsPage from "@/pages/tickets-page";
 import TicketDetail from "@/pages/ticket-detail";
 import ProfilePage from "@/pages/profile-page";
 import AdminPortal from "@/pages/admin-portal";
+import MessagesPage from "@/pages/messages-page";
 
 function AppRouter() {
   return (
@@ -39,6 +40,7 @@ function AppRouter() {
       <Route path="/tickets" component={TicketsPage} />
       <Route path="/tickets/:id" component={TicketDetail} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/messages" component={MessagesPage} />
       <Route path="/admin" component={AdminPortal} />
       <Route component={NotFound} />
     </Switch>
@@ -143,6 +145,64 @@ function SetupReminderDialog() {
   );
 }
 
+function PrivateMessagePopup() {
+  const { user } = useAuth();
+  const [popupMessage, setPopupMessage] = useState<{ subject: string; body: string } | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!user || user.role === "admin") return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "private_message" && data.recipientId === user.id) {
+          setPopupMessage({ subject: data.subject, body: "You have a new private message. Open your Message Center to read it." });
+          queryClient.invalidateQueries({ queryKey: ["/api/private-messages"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/private-messages/unread-count"] });
+        }
+      } catch {}
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [user]);
+
+  if (!popupMessage) return null;
+
+  return (
+    <Dialog open={!!popupMessage} onOpenChange={(open) => { if (!open) setPopupMessage(null); }}>
+      <DialogContent className="max-w-md" data-testid="dialog-private-message-popup">
+        <DialogHeader>
+          <div className="flex justify-center mb-2">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mail className="w-6 h-6 text-primary" />
+            </div>
+          </div>
+          <DialogTitle className="text-center text-lg" data-testid="text-popup-subject">New Message: {popupMessage.subject}</DialogTitle>
+        </DialogHeader>
+        <div className="text-sm text-muted-foreground whitespace-pre-wrap text-center" data-testid="text-popup-body">
+          {popupMessage.body}
+        </div>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+          <Button className="w-full" data-testid="button-popup-view-messages" onClick={() => { setPopupMessage(null); window.location.href = "/messages"; }}>
+            View Messages
+          </Button>
+          <Button variant="outline" className="w-full" data-testid="button-popup-dismiss" onClick={() => setPopupMessage(null)}>
+            Dismiss
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WelcomeDialog() {
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -220,6 +280,7 @@ function AppContent() {
     <>
       <WelcomeDialog />
       <SetupReminderDialog />
+      <PrivateMessagePopup />
       <AuthenticatedLayout />
     </>
   );
