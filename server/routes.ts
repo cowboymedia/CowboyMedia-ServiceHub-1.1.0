@@ -13,6 +13,7 @@ import { promisify } from "util";
 import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple } from "./email";
 import { sendOneSignalToUser as sendOneSignalDirect, sendOneSignalToMultiple } from "./onesignal";
+import { sendFCMToUser } from "./firebase";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -116,8 +117,16 @@ async function sendPushToUser(userId: string, payload: { title: string; body: st
         data: payload.tag ? { tag: payload.tag } : undefined,
       });
     }
+    if (user?.fcmToken) {
+      sendFCMToUser(user.fcmToken, {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url,
+        data: payload.tag ? { tag: payload.tag } : undefined,
+      });
+    }
   } catch (e) {
-    console.error("OneSignal notification error:", e);
+    console.error("Native push notification error:", e);
   }
 }
 
@@ -907,6 +916,30 @@ export async function registerRoutes(
       const updated = await storage.updateUser(req.session.userId!, { onesignalPlayerId: null });
       if (!updated) return res.status(404).json({ message: "User not found" });
       res.json({ message: "OneSignal player ID removed" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/fcm/register", requireAuth, async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ message: "token is required" });
+      }
+      const updated = await storage.updateUser(req.session.userId!, { fcmToken: token });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ message: "FCM token registered" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/fcm/unregister", requireAuth, async (req, res) => {
+    try {
+      const updated = await storage.updateUser(req.session.userId!, { fcmToken: null });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ message: "FCM token removed" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

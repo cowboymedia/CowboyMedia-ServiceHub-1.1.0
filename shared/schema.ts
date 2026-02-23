@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   subscribedServices: text("subscribed_services").array().default(sql`'{}'::text[]`),
   theme: text("theme").notNull().default("light"),
   onesignalPlayerId: text("onesignal_player_id"),
+  fcmToken: text("fcm_token"),
 });
 
 export const services = pgTable("services", {

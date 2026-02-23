@@ -10,7 +10,7 @@ A comprehensive service status monitoring and support platform built as a Progre
 - **Real-time**: WebSocket for ticket messaging
 - **File uploads**: Multer (stored in /uploads directory)
 - **PWA**: Service Worker + Web App Manifest for installable mobile experience
-- **Push Notifications**: Web Push API (VAPID) + OneSignal for native iOS/Android push
+- **Push Notifications**: Web Push API (VAPID) + OneSignal + Firebase Cloud Messaging for native iOS/Android push
 - **Email**: SendGrid integration for transactional emails (noreply@cowboymedia.net)
 
 ## Key Features
@@ -70,6 +70,7 @@ server/
   storage.ts - Database storage interface (Drizzle ORM)
   email.ts   - SendGrid email utility (transactional emails)
   onesignal.ts - OneSignal push notification utility (native iOS/Android)
+  firebase.ts  - Firebase Cloud Messaging utility (native iOS/Android)
   db.ts      - Database connection
   seed.ts    - Seed data for initial setup
 shared/
@@ -107,6 +108,8 @@ shared/
 - `GET /api/push/vapid-key` - Get VAPID public key
 - `POST /api/onesignal/register` - Register OneSignal player ID for native push
 - `POST /api/onesignal/unregister` - Remove OneSignal player ID
+- `POST /api/fcm/register` - Register Firebase Cloud Messaging token for native push
+- `POST /api/fcm/unregister` - Remove FCM token
 - Admin routes under `/api/admin/...`
 
 ## Notification Triggers
@@ -127,4 +130,5 @@ shared/
 - `VITE_VAPID_PUBLIC_KEY` - VAPID public key for frontend
 - `ONESIGNAL_APP_ID` - OneSignal App ID for native push
 - `ONESIGNAL_REST_API_KEY` - OneSignal REST API key for native push
+- `FIREBASE_SERVICE_ACCOUNT_JSON` - Firebase service account JSON for FCM push
 - SendGrid configured via Replit connector integration
