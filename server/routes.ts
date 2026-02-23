@@ -12,6 +12,7 @@ import crypto from "crypto";
 import { promisify } from "util";
 import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple } from "./email";
+import { sendOneSignalToUser as sendOneSignalDirect, sendOneSignalToMultiple } from "./onesignal";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -103,6 +104,20 @@ async function sendPushToUser(userId: string, payload: { title: string; body: st
     }
   } catch (e) {
     console.error("Push notification error:", e);
+  }
+
+  try {
+    const user = await storage.getUser(userId);
+    if (user?.onesignalPlayerId) {
+      sendOneSignalDirect(user.onesignalPlayerId, {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url,
+        data: payload.tag ? { tag: payload.tag } : undefined,
+      });
+    }
+  } catch (e) {
+    console.error("OneSignal notification error:", e);
   }
 }
 
@@ -871,6 +886,30 @@ export async function registerRoutes(
 
   app.get("/api/push/vapid-key", (_req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
+  });
+
+  app.post("/api/onesignal/register", requireAuth, async (req, res) => {
+    try {
+      const { playerId } = req.body;
+      if (!playerId) {
+        return res.status(400).json({ message: "playerId is required" });
+      }
+      const updated = await storage.updateUser(req.session.userId!, { onesignalPlayerId: playerId });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ message: "OneSignal player ID registered" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/onesignal/unregister", requireAuth, async (req, res) => {
+    try {
+      const updated = await storage.updateUser(req.session.userId!, { onesignalPlayerId: null });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ message: "OneSignal player ID removed" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // WebSocket

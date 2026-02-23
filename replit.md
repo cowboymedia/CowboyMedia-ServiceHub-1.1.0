@@ -10,7 +10,7 @@ A comprehensive service status monitoring and support platform built as a Progre
 - **Real-time**: WebSocket for ticket messaging
 - **File uploads**: Multer (stored in /uploads directory)
 - **PWA**: Service Worker + Web App Manifest for installable mobile experience
-- **Push Notifications**: Web Push API (VAPID) for alert and ticket notifications
+- **Push Notifications**: Web Push API (VAPID) + OneSignal for native iOS/Android push
 - **Email**: SendGrid integration for transactional emails (noreply@cowboymedia.net)
 
 ## Key Features
@@ -69,6 +69,7 @@ server/
   routes.ts  - All API routes + WebSocket + push notifications + email notifications + auth middleware
   storage.ts - Database storage interface (Drizzle ORM)
   email.ts   - SendGrid email utility (transactional emails)
+  onesignal.ts - OneSignal push notification utility (native iOS/Android)
   db.ts      - Database connection
   seed.ts    - Seed data for initial setup
 shared/
@@ -104,6 +105,8 @@ shared/
 - `POST /api/push/subscribe` - Subscribe to push notifications
 - `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 - `GET /api/push/vapid-key` - Get VAPID public key
+- `POST /api/onesignal/register` - Register OneSignal player ID for native push
+- `POST /api/onesignal/unregister` - Remove OneSignal player ID
 - Admin routes under `/api/admin/...`
 
 ## Notification Triggers
@@ -122,4 +125,6 @@ shared/
 - `VAPID_PUBLIC_KEY` - Web Push VAPID public key
 - `VAPID_PRIVATE_KEY` - Web Push VAPID private key (secret)
 - `VITE_VAPID_PUBLIC_KEY` - VAPID public key for frontend
+- `ONESIGNAL_APP_ID` - OneSignal App ID for native push
+- `ONESIGNAL_REST_API_KEY` - OneSignal REST API key for native push
 - SendGrid configured via Replit connector integration
