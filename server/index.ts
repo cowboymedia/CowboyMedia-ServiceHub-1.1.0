@@ -23,6 +23,13 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+app.get("/sw.js", (_req, res, next) => {
+  res.setHeader("Service-Worker-Allowed", "/");
+  res.setHeader("Content-Type", "application/javascript");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",

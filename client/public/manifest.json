@@ -96,5 +96,11 @@
       "label": "CowboyMedia ServiceHub Mobile"
     }
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "serviceworker": {
+    "src": "/sw.js",
+    "scope": "/",
+    "type": "text/javascript",
+    "update_via_cache": "none"
+  }
 }
