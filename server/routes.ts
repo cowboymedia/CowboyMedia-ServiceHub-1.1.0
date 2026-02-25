@@ -406,6 +406,61 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/tickets/:id/claim", requireAdmin, async (req, res) => {
+    try {
+      const ticket = await storage.getTicket(req.params.id);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      if (ticket.claimedBy) {
+        const claimedAdmin = await storage.getUser(ticket.claimedBy);
+        return res.status(400).json({ message: `Ticket already claimed by ${claimedAdmin?.fullName || "another admin"}` });
+      }
+      const admin = await storage.getUser(req.session.userId!);
+      if (!admin) return res.status(401).json({ message: "Unauthorized" });
+
+      const updated = await storage.updateTicket(req.params.id, { claimedBy: admin.id });
+      if (!updated) return res.status(404).json({ message: "Ticket not found" });
+      broadcast({ type: "ticket_updated", ticket: updated });
+
+      const supportUser = await storage.getUserByUsername("cowboymedia-support");
+      const claimMessage = `${admin.fullName} has claimed this ticket and will be assisting you.`;
+      if (supportUser) {
+        const autoMessage = await storage.createTicketMessage({
+          ticketId: ticket.id,
+          senderId: supportUser.id,
+          message: claimMessage,
+          imageUrl: null,
+        });
+        broadcast({ type: "ticket_message", ticketId: ticket.id, message: autoMessage });
+      }
+
+      sendPushToUser(ticket.customerId, {
+        title: "Ticket Claimed",
+        body: `${admin.fullName} is now handling your ticket: ${ticket.subject}`,
+        url: `/tickets/${ticket.id}`,
+        tag: `ticket-${ticket.id}`,
+      });
+      storage.createTicketNotification({
+        userId: ticket.customerId,
+        ticketId: ticket.id,
+        type: "ticket_claimed",
+        message: `${admin.fullName} claimed your ticket: ${ticket.subject}`,
+      });
+
+      const customer = await storage.getUser(ticket.customerId);
+      if (customer?.email) {
+        sendEmail(customer.email, `Your Ticket Has Been Claimed: ${ticket.subject}`,
+          `<h2>Your Support Ticket Has Been Claimed</h2>
+<p><strong>${admin.fullName}</strong> has claimed your ticket and will be assisting you.</p>
+<p><strong>Ticket:</strong> ${ticket.subject}</p>`
+        );
+      }
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/tickets/:id/messages", requireAuth, async (req, res) => {
     const ticket = await storage.getTicket(req.params.id);
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });

@@ -58,6 +58,7 @@ export const tickets = pgTable("tickets", {
   status: text("status").notNull().default("open"),
   priority: text("priority").notNull().default("medium"),
   customerId: varchar("customer_id").notNull(),
+  claimedBy: varchar("claimed_by"),
   imageUrl: text("image_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   closedAt: timestamp("closed_at"),

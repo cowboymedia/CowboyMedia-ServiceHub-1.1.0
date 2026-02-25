@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon } from "lucide-react";
+import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -108,6 +108,21 @@ export default function TicketDetail() {
     },
   });
 
+  const claimMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/tickets/${params.id}/claim`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      toast({ title: "Ticket claimed" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to claim ticket", description: e.message, variant: "destructive" });
+    },
+  });
+
   const serviceName = services?.find((s) => s.id === ticket?.serviceId)?.name;
 
   if (isLoading) {
@@ -150,6 +165,17 @@ export default function TicketDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && ticket.status === "open" && !ticket.claimedBy && (
+            <Button variant="default" size="sm" onClick={() => claimMutation.mutate()} disabled={claimMutation.isPending} data-testid="button-claim-ticket">
+              <Shield className="w-4 h-4 mr-1" /> {claimMutation.isPending ? "Claiming..." : "Claim Ticket"}
+            </Button>
+          )}
+          {ticket.claimedBy && (
+            <Badge variant="outline" className="text-xs gap-1" data-testid="badge-claimed-by">
+              <Shield className="w-3 h-3" />
+              Claimed{isAdmin && customerInfo ? ` by ${ticket.claimedBy === user?.id ? "you" : "admin"}` : ""}
+            </Badge>
+          )}
           {isAdmin && (
             <Dialog open={customerInfoOpen} onOpenChange={setCustomerInfoOpen}>
               <DialogTrigger asChild>
