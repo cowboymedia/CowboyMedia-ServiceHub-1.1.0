@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +46,12 @@ export default function ReportRequestPage() {
   const { data: submissions, isLoading } = useQuery<EnrichedReportRequest[]>({
     queryKey: ["/api/report-requests"],
   });
+
+  useEffect(() => {
+    apiRequest("POST", "/api/report-notifications/mark-read").then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/report-notifications/unread-count"] });
+    });
+  }, []);
 
   const contentForm = useForm({
     resolver: zodResolver(contentIssueSchema),
@@ -252,6 +258,12 @@ export default function ReportRequestPage() {
                     </div>
                     <p className="font-medium text-sm mt-2" data-testid={`text-submission-title-${sub.id}`}>{sub.title}</p>
                     {sub.description && <p className="text-xs text-muted-foreground mt-1">{sub.description}</p>}
+                    {sub.adminNotes && (
+                      <div className="mt-2 p-2 rounded-md bg-accent/50 border" data-testid={`text-admin-notes-${sub.id}`}>
+                        <p className="text-xs font-medium text-muted-foreground">Admin Notes:</p>
+                        <p className="text-xs mt-0.5">{sub.adminNotes}</p>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                       <span>{sub.serviceName}</span>
                       <span>·</span>

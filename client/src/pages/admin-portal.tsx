@@ -1003,6 +1003,10 @@ type EnrichedReportRequest = ReportRequest & { customerName?: string; customerEm
 
 function ReportsRequestsTab() {
   const { toast } = useToast();
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [updatingReport, setUpdatingReport] = useState<EnrichedReportRequest | null>(null);
+  const [updateStatus, setUpdateStatus] = useState("");
+  const [updateNotes, setUpdateNotes] = useState("");
 
   const { data: reports, isLoading } = useQuery<EnrichedReportRequest[]>({
     queryKey: ["/api/report-requests"],
@@ -1013,13 +1017,15 @@ function ReportsRequestsTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await apiRequest("PATCH", `/api/admin/report-requests/${id}`, { status });
+    mutationFn: async ({ id, status, adminNotes }: { id: string; status: string; adminNotes: string }) => {
+      const res = await apiRequest("PATCH", `/api/admin/report-requests/${id}`, { status, adminNotes: adminNotes || undefined });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/report-requests"] });
-      toast({ title: "Status updated" });
+      setUpdateDialogOpen(false);
+      setUpdatingReport(null);
+      toast({ title: "Status updated and customer notified" });
     },
   });
 
@@ -1032,6 +1038,13 @@ function ReportsRequestsTab() {
       toast({ title: "Report/request deleted" });
     },
   });
+
+  const openUpdateDialog = (rr: EnrichedReportRequest) => {
+    setUpdatingReport(rr);
+    setUpdateStatus(rr.status);
+    setUpdateNotes(rr.adminNotes || "");
+    setUpdateDialogOpen(true);
+  };
 
   const statusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -1072,6 +1085,12 @@ function ReportsRequestsTab() {
                     </div>
                     <p className="font-medium text-sm mt-2" data-testid={`text-report-title-${rr.id}`}>{rr.title}</p>
                     {rr.description && <p className="text-xs text-muted-foreground mt-1">{rr.description}</p>}
+                    {rr.adminNotes && (
+                      <div className="mt-2 p-2 rounded-md bg-accent/50 border">
+                        <p className="text-xs font-medium text-muted-foreground">Admin Notes:</p>
+                        <p className="text-xs mt-0.5">{rr.adminNotes}</p>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span>{rr.customerName}</span>
                       {rr.customerEmail && <span>({rr.customerEmail})</span>}
@@ -1083,17 +1102,9 @@ function ReportsRequestsTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <Select onValueChange={(status) => updateMutation.mutate({ id: rr.id, status })}>
-                      <SelectTrigger className="w-28 h-8 text-xs" data-testid={`select-status-${rr.id}`}>
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="reviewed">Reviewed</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="dismissed">Dismissed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Button size="sm" variant="outline" onClick={() => openUpdateDialog(rr)} data-testid={`button-update-report-${rr.id}`}>
+                      <Edit className="w-3 h-3 mr-1" /> Update
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" data-testid={`button-delete-report-${rr.id}`}>
@@ -1118,6 +1129,54 @@ function ReportsRequestsTab() {
           ))}
         </div>
       )}
+
+      <Dialog open={updateDialogOpen} onOpenChange={(open) => { if (!open) { setUpdateDialogOpen(false); setUpdatingReport(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Report/Request</DialogTitle>
+          </DialogHeader>
+          {updatingReport && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium">{updatingReport.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">From: {updatingReport.customerName}</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Status</label>
+                <Select value={updateStatus} onValueChange={setUpdateStatus}>
+                  <SelectTrigger data-testid="select-update-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="reviewed">Reviewed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="dismissed">Dismissed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Admin Notes</label>
+                <Textarea
+                  value={updateNotes}
+                  onChange={(e) => setUpdateNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Add notes for the customer..."
+                  data-testid="input-admin-notes"
+                />
+              </div>
+              <Button
+                className="w-full"
+                disabled={updateMutation.isPending}
+                onClick={() => updateMutation.mutate({ id: updatingReport.id, status: updateStatus, adminNotes: updateNotes })}
+                data-testid="button-save-update"
+              >
+                {updateMutation.isPending ? "Updating..." : "Update & Notify Customer"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

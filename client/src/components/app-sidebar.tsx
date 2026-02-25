@@ -39,6 +39,13 @@ export function AppSidebar() {
   });
   const unreadTicketCount = ticketNotifData?.count ?? 0;
 
+  const { data: reportNotifData } = useQuery<{ count: number }>({
+    queryKey: ["/api/report-notifications/unread-count"],
+    refetchInterval: 30000,
+    enabled: !!user && user.role !== "admin",
+  });
+  const unreadReportCount = reportNotifData?.count ?? 0;
+
   const handleNavClick = () => {
     if (isMobile) {
       requestAnimationFrame(() => {
@@ -89,6 +96,11 @@ export function AppSidebar() {
                       {item.title === "Messages" && unreadCount > 0 && (
                         <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-5 flex items-center justify-center px-1" data-testid="badge-unread-messages">
                           {unreadCount}
+                        </Badge>
+                      )}
+                      {item.title === "Report/Request" && unreadReportCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-5 flex items-center justify-center px-1" data-testid="badge-unread-reports">
+                          {unreadReportCount}
                         </Badge>
                       )}
                     </Link>

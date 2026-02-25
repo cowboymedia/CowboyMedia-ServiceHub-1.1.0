@@ -1086,10 +1086,66 @@ ${description ? `<p><strong>Details:</strong> ${description}</p>` : ""}`
 
   app.patch("/api/admin/report-requests/:id", requireAdmin, async (req, res) => {
     try {
-      const { status } = req.body;
-      const updated = await storage.updateReportRequest(req.params.id, { status });
+      const { status, adminNotes } = req.body;
+      const existing = await storage.getAllReportRequests().then(all => all.find(r => r.id === req.params.id));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+
+      const updateData: any = {};
+      if (status) updateData.status = status;
+      if (adminNotes !== undefined) updateData.adminNotes = adminNotes;
+
+      const updated = await storage.updateReportRequest(req.params.id, updateData);
       if (!updated) return res.status(404).json({ message: "Not found" });
+
+      if (status && status !== existing.status) {
+        const typeLabel = existing.type === "content_issue" ? "Content Issue Report" : "Movie/Series Request";
+        const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+        sendPushToUser(existing.customerId, {
+          title: `${typeLabel} Updated`,
+          body: `Your ${typeLabel.toLowerCase()} "${existing.title}" has been marked as ${statusLabel}`,
+          url: "/report-request",
+          tag: `report-${existing.id}`,
+        });
+
+        storage.createReportNotification({
+          userId: existing.customerId,
+          reportRequestId: existing.id,
+          message: `Your ${typeLabel.toLowerCase()} "${existing.title}" has been updated to ${statusLabel}`,
+        });
+
+        const customer = await storage.getUser(existing.customerId);
+        if (customer?.email) {
+          sendEmail(customer.email, `${typeLabel} Update: ${existing.title}`,
+            `<h2>${typeLabel} Status Update</h2>
+<p>Your submission has been updated:</p>
+<p><strong>Title:</strong> ${existing.title}</p>
+<p><strong>New Status:</strong> ${statusLabel}</p>
+${adminNotes ? `<p><strong>Admin Notes:</strong> ${adminNotes}</p>` : (updated.adminNotes ? `<p><strong>Admin Notes:</strong> ${updated.adminNotes}</p>` : "")}
+<p>Thank you for using CowboyMedia!</p>`
+          );
+        }
+      }
+
       res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/report-notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadReportNotificationCount(req.session.userId!);
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/report-notifications/mark-read", requireAuth, async (req, res) => {
+    try {
+      await storage.markReportNotificationsRead(req.session.userId!);
+      res.json({ message: "Marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

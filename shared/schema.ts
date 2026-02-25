@@ -117,6 +117,16 @@ export const reportRequests = pgTable("report_requests", {
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("pending"),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const reportNotifications = pgTable("report_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  reportRequestId: varchar("report_request_id").notNull(),
+  message: text("message").notNull(),
+  readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -133,6 +143,7 @@ export const insertTicketNotificationSchema = createInsertSchema(ticketNotificat
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
 export const insertQuickResponseSchema = createInsertSchema(quickResponses).omit({ id: true, createdAt: true });
 export const insertReportRequestSchema = createInsertSchema(reportRequests).omit({ id: true, createdAt: true });
+export const insertReportNotificationSchema = createInsertSchema(reportNotifications).omit({ id: true, createdAt: true, readAt: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -159,6 +170,8 @@ export type InsertQuickResponse = z.infer<typeof insertQuickResponseSchema>;
 export type QuickResponse = typeof quickResponses.$inferSelect;
 export type InsertReportRequest = z.infer<typeof insertReportRequestSchema>;
 export type ReportRequest = typeof reportRequests.$inferSelect;
+export type InsertReportNotification = z.infer<typeof insertReportNotificationSchema>;
+export type ReportNotification = typeof reportNotifications.$inferSelect;
 
 // Login schema
 export const loginSchema = z.object({

@@ -11,7 +11,8 @@ import {
   type PushSubscription, type InsertPushSubscription,
   type QuickResponse, type InsertQuickResponse,
   type ReportRequest, type InsertReportRequest,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests,
+  type ReportNotification, type InsertReportNotification,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
@@ -85,6 +86,10 @@ export interface IStorage {
   createReportRequest(rr: InsertReportRequest): Promise<ReportRequest>;
   updateReportRequest(id: string, data: Partial<ReportRequest>): Promise<ReportRequest | undefined>;
   deleteReportRequest(id: string): Promise<void>;
+
+  createReportNotification(notification: InsertReportNotification): Promise<ReportNotification>;
+  getUnreadReportNotificationCount(userId: string): Promise<number>;
+  markReportNotificationsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -347,6 +352,20 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReportRequest(id: string): Promise<void> {
     await db.delete(reportRequests).where(eq(reportRequests.id, id));
+  }
+
+  async createReportNotification(notification: InsertReportNotification): Promise<ReportNotification> {
+    const [created] = await db.insert(reportNotifications).values(notification).returning();
+    return created;
+  }
+
+  async getUnreadReportNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(reportNotifications).where(and(eq(reportNotifications.userId, userId), isNull(reportNotifications.readAt)));
+    return Number(result[0]?.count ?? 0);
+  }
+
+  async markReportNotificationsRead(userId: string): Promise<void> {
+    await db.update(reportNotifications).set({ readAt: new Date() }).where(and(eq(reportNotifications.userId, userId), isNull(reportNotifications.readAt)));
   }
 }
 
