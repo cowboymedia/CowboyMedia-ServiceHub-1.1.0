@@ -9,7 +9,8 @@ import {
   type PrivateMessage, type InsertPrivateMessage,
   type TicketNotification, type InsertTicketNotification,
   type PushSubscription, type InsertPushSubscription,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions,
+  type QuickResponse, type InsertQuickResponse,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
@@ -71,6 +72,12 @@ export interface IStorage {
   createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
   deletePushSubscription(endpoint: string): Promise<void>;
   getPushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscription | undefined>;
+
+  getAllQuickResponses(): Promise<QuickResponse[]>;
+  getQuickResponse(id: string): Promise<QuickResponse | undefined>;
+  createQuickResponse(qr: InsertQuickResponse): Promise<QuickResponse>;
+  updateQuickResponse(id: string, data: Partial<QuickResponse>): Promise<QuickResponse | undefined>;
+  deleteQuickResponse(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -288,6 +295,29 @@ export class DatabaseStorage implements IStorage {
   async getPushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscription | undefined> {
     const [sub] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
     return sub;
+  }
+
+  async getAllQuickResponses(): Promise<QuickResponse[]> {
+    return db.select().from(quickResponses).orderBy(desc(quickResponses.createdAt));
+  }
+
+  async getQuickResponse(id: string): Promise<QuickResponse | undefined> {
+    const [qr] = await db.select().from(quickResponses).where(eq(quickResponses.id, id));
+    return qr;
+  }
+
+  async createQuickResponse(qr: InsertQuickResponse): Promise<QuickResponse> {
+    const [created] = await db.insert(quickResponses).values(qr).returning();
+    return created;
+  }
+
+  async updateQuickResponse(id: string, data: Partial<QuickResponse>): Promise<QuickResponse | undefined> {
+    const [updated] = await db.update(quickResponses).set(data).where(eq(quickResponses.id, id)).returning();
+    return updated;
+  }
+
+  async deleteQuickResponse(id: string): Promise<void> {
+    await db.delete(quickResponses).where(eq(quickResponses.id, id));
   }
 }
 

@@ -17,9 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send, Clock } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send, Clock, Zap } from "lucide-react";
 import { format } from "date-fns";
-import type { User, Service, ServiceAlert, NewsStory } from "@shared/schema";
+import type { User, Service, ServiceAlert, NewsStory, QuickResponse } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -826,6 +826,179 @@ function MessagesTab() {
   );
 }
 
+const quickResponseSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  message: z.string().min(1, "Message is required"),
+});
+
+function QuickResponsesTab() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingQr, setEditingQr] = useState<QuickResponse | null>(null);
+
+  const { data: quickResponses, isLoading } = useQuery<QuickResponse[]>({
+    queryKey: ["/api/admin/quick-responses"],
+  });
+
+  const form = useForm({
+    resolver: zodResolver(quickResponseSchema),
+    defaultValues: { title: "", message: "" },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof quickResponseSchema>) => {
+      const res = await apiRequest("POST", "/api/admin/quick-responses", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/quick-responses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quick-responses"] });
+      setDialogOpen(false);
+      form.reset();
+      toast({ title: "Quick response created" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to create quick response", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof quickResponseSchema>) => {
+      const res = await apiRequest("PATCH", `/api/admin/quick-responses/${editingQr!.id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/quick-responses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quick-responses"] });
+      setEditingQr(null);
+      setDialogOpen(false);
+      form.reset();
+      toast({ title: "Quick response updated" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to update quick response", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/quick-responses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/quick-responses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quick-responses"] });
+      toast({ title: "Quick response deleted" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to delete quick response", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const openEdit = (qr: QuickResponse) => {
+    setEditingQr(qr);
+    form.setValue("title", qr.title);
+    form.setValue("message", qr.message);
+    setDialogOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingQr(null);
+    form.reset();
+    setDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold" data-testid="text-quick-responses-title">Quick Responses</h2>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingQr(null); form.reset(); } }}>
+          <DialogTrigger asChild>
+            <Button size="sm" onClick={openCreate} data-testid="button-add-quick-response">
+              <Plus className="w-4 h-4 mr-1" /> Add Response
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingQr ? "Edit Quick Response" : "Add Quick Response"}</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit((data) => editingQr ? updateMutation.mutate(data) : createMutation.mutate(data))} className="space-y-4">
+                <FormField control={form.control} name="title" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl><Input {...field} placeholder="e.g. Billing Question" data-testid="input-qr-title" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="message" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Message</FormLabel>
+                    <FormControl><Textarea {...field} rows={4} placeholder="The response text to send..." data-testid="input-qr-message" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <Button type="submit" className="w-full" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-quick-response">
+                  {editingQr ? "Update" : "Create"} Quick Response
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
+      ) : !quickResponses || quickResponses.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Zap className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No quick responses yet. Add one to get started.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {quickResponses.map((qr) => (
+            <Card key={qr.id} data-testid={`card-quick-response-${qr.id}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm" data-testid={`text-qr-title-${qr.id}`}>{qr.title}</p>
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap" data-testid={`text-qr-message-${qr.id}`}>{qr.message}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(qr)} data-testid={`button-edit-qr-${qr.id}`}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" data-testid={`button-delete-qr-${qr.id}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Quick Response</AlertDialogTitle>
+                          <AlertDialogDescription>Are you sure you want to delete "{qr.title}"?</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(qr.id)}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin } = useAuth();
 
@@ -847,6 +1020,7 @@ export default function AdminPortal() {
     { key: "alerts", label: "Alerts", icon: AlertTriangle, color: "text-amber-500", bg: "bg-amber-500/10" },
     { key: "news", label: "News", icon: Newspaper, color: "text-purple-500", bg: "bg-purple-500/10" },
     { key: "messages", label: "Messages", icon: Mail, color: "text-rose-500", bg: "bg-rose-500/10" },
+    { key: "quick-responses", label: "Quick Responses", icon: Zap, color: "text-orange-500", bg: "bg-orange-500/10" },
   ];
 
   const renderContent = () => {
@@ -856,6 +1030,7 @@ export default function AdminPortal() {
       case "alerts": return <AlertsTab />;
       case "news": return <NewsTab />;
       case "messages": return <MessagesTab />;
+      case "quick-responses": return <QuickResponsesTab />;
       default: return null;
     }
   };

@@ -62,9 +62,9 @@ client/
       news-page.tsx    - News list
       news-detail.tsx  - News article detail
       tickets-page.tsx - Ticket list with create dialog + admin delete + marks notifications read
-      ticket-detail.tsx - Ticket chat with real-time messages + resolution prompt
+      ticket-detail.tsx - Ticket chat with real-time messages + resolution prompt + admin quick response dropdown
       profile-page.tsx - User profile, fullName update, billing link, theme, push notifications, service subscriptions
-      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages
+      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses
 server/
   index.ts   - Express server entry
   routes.ts  - All API routes + WebSocket + push notifications + email notifications + auth middleware
@@ -98,6 +98,11 @@ shared/
 - `POST /api/admin/private-messages` - Send private message to customer (admin only, triggers push+email+WS)
 - `GET /api/admin/private-messages/sent` - Get admin's sent messages
 - `DELETE /api/admin/private-messages/:id` - Delete sent message (admin only, verifies sender)
+- `GET /api/admin/quick-responses` - Get all quick responses (admin only)
+- `POST /api/admin/quick-responses` - Create quick response (admin only)
+- `PATCH /api/admin/quick-responses/:id` - Update quick response (admin only)
+- `DELETE /api/admin/quick-responses/:id` - Delete quick response (admin only)
+- `GET /api/quick-responses` - Get all quick responses (for ticket reply dropdown)
 - `GET /api/private-messages` - Get current user's private messages (enriched with senderName)
 - `GET /api/private-messages/unread-count` - Get unread message count
 - `DELETE /api/private-messages/:id` - Delete own private message (customer, verifies recipient)

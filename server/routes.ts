@@ -946,6 +946,55 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/quick-responses", requireAdmin, async (req, res) => {
+    try {
+      const responses = await storage.getAllQuickResponses();
+      res.json(responses);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/quick-responses", requireAdmin, async (req, res) => {
+    try {
+      const { title, message } = req.body;
+      if (!title || !message) return res.status(400).json({ message: "Title and message are required" });
+      const qr = await storage.createQuickResponse({ title, message });
+      res.json(qr);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/quick-responses/:id", requireAdmin, async (req, res) => {
+    try {
+      const { title, message } = req.body;
+      const updated = await storage.updateQuickResponse(req.params.id, { title, message });
+      if (!updated) return res.status(404).json({ message: "Quick response not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/admin/quick-responses/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteQuickResponse(req.params.id);
+      res.json({ message: "Quick response deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/quick-responses", requireAuth, async (req, res) => {
+    try {
+      const responses = await storage.getAllQuickResponses();
+      res.json(responses);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/private-messages", requireAuth, async (req, res) => {
     try {
       const messages = await storage.getPrivateMessagesByUser(req.session.userId!);

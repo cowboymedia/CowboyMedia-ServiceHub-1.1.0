@@ -11,11 +11,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield, Zap } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Ticket, TicketMessage, Service, User } from "@shared/schema";
+import type { Ticket, TicketMessage, Service, User, QuickResponse } from "@shared/schema";
 
 type EnrichedTicketMessage = TicketMessage & { senderName?: string; senderRole?: string };
 
@@ -49,6 +50,11 @@ export default function TicketDetail() {
     ticket: { id: string; subject: string; description: string; serviceId: string | null; status: string; priority: string; createdAt: string; closedAt: string | null; imageUrl: string | null };
   }>({
     queryKey: ["/api/tickets", params.id, "customer"],
+    enabled: isAdmin,
+  });
+
+  const { data: quickResponses } = useQuery<QuickResponse[]>({
+    queryKey: ["/api/quick-responses"],
     enabled: isAdmin,
   });
 
@@ -381,6 +387,22 @@ export default function TicketDetail() {
                 >
                   <Image className="w-4 h-4" />
                 </Button>
+                {isAdmin && quickResponses && quickResponses.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" size="icon" variant="ghost" data-testid="button-quick-responses">
+                        <Zap className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto">
+                      {quickResponses.map((qr) => (
+                        <DropdownMenuItem key={qr.id} onClick={() => setMessage(qr.message)} data-testid={`quick-response-${qr.id}`}>
+                          {qr.title}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 <Input
                   ref={messageInputRef}
                   value={message}
