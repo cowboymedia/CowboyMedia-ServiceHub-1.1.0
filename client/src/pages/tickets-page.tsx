@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -59,6 +60,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function TicketsPage() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
@@ -105,12 +107,13 @@ export default function TicketsPage() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (ticket: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       setDialogOpen(false);
       form.reset();
       setImageFile(null);
       toast({ title: "Ticket created successfully" });
+      setLocation(`/tickets/${ticket.id}`);
     },
     onError: (e: Error) => {
       toast({ title: "Failed to create ticket", description: e.message, variant: "destructive" });
