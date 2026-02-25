@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Smartphone, BellRing, Settings, Mail } from "lucide-react";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
@@ -64,9 +65,11 @@ function AuthenticatedLayout() {
             <SidebarTrigger className="h-12 w-12 min-h-[48px] min-w-[48px] [&_svg]:!h-7 [&_svg]:!w-7" data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
-          <main className="flex-1 overflow-auto p-3 sm:p-6">
-            <AppRouter />
-          </main>
+          <PullToRefresh className="flex-1 overflow-auto">
+            <main className="p-3 sm:p-6">
+              <AppRouter />
+            </main>
+          </PullToRefresh>
         </div>
       </div>
     </SidebarProvider>
