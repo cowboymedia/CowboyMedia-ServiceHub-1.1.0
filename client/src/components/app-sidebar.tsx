@@ -32,6 +32,13 @@ export function AppSidebar() {
   });
   const unreadCount = unreadData?.count ?? 0;
 
+  const { data: ticketNotifData } = useQuery<{ count: number }>({
+    queryKey: ["/api/ticket-notifications/unread-count"],
+    refetchInterval: 15000,
+    enabled: !!user,
+  });
+  const unreadTicketCount = ticketNotifData?.count ?? 0;
+
   const handleNavClick = () => {
     if (isMobile) {
       requestAnimationFrame(() => {
@@ -73,6 +80,11 @@ export function AppSidebar() {
                     <Link href={item.url} onClick={handleNavClick} data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
                       <item.icon className="w-4 h-4" />
                       <span className="flex-1">{item.title}</span>
+                      {item.title === "Tickets" && unreadTicketCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-5 flex items-center justify-center px-1" data-testid="badge-unread-tickets">
+                          {unreadTicketCount}
+                        </Badge>
+                      )}
                       {item.title === "Messages" && unreadCount > 0 && (
                         <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-5 flex items-center justify-center px-1" data-testid="badge-unread-messages">
                           {unreadCount}

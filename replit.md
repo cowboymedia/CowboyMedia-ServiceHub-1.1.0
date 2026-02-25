@@ -10,12 +10,13 @@ A comprehensive service status monitoring and support platform built as a Progre
 - **Real-time**: WebSocket for ticket messaging
 - **File uploads**: Multer (stored in /uploads directory)
 - **PWA**: Service Worker + Web App Manifest for installable mobile experience
-- **Push Notifications**: Web Push API (VAPID) + OneSignal + Firebase Cloud Messaging for native iOS/Android push
+- **Push Notifications**: Web Push API (VAPID) only — no OneSignal or Firebase
 - **Email**: SendGrid integration for transactional emails (noreply@cowboymedia.net)
 
 ## Key Features
 - Progressive Web App (installable on iOS/Android)
-- Push notifications for service alerts and ticket updates
+- Push notifications via VAPID Web Push for service alerts and ticket updates
+- Ticket notification badge in sidebar (for both admins and customers)
 - Local auth (username/password) with admin-managed credentials
 - Service status monitoring with subscriptions
 - Service alerts with timeline updates
@@ -39,7 +40,7 @@ client/
   public/
     manifest.json    - PWA manifest for installability
     sw.js            - Service worker for offline + push notifications
-    icons/           - App icons (192px, 512px)
+    icons/           - App icons (48-1024px)
   src/
     main.tsx         - Entry point (registers service worker)
     App.tsx          - Main app with routing, auth, theme providers
@@ -47,9 +48,9 @@ client/
       auth.tsx       - Auth context provider
       theme-provider.tsx - Dark/light theme context
       queryClient.ts - TanStack Query setup
-      push-notifications.ts - Push notification subscription helpers
+      push-notifications.ts - VAPID push notification subscription helpers
     components/
-      app-sidebar.tsx  - Navigation sidebar
+      app-sidebar.tsx  - Navigation sidebar with unread badges (tickets + messages)
       theme-toggle.tsx - Dark/light mode toggle
       image-lightbox.tsx - Clickable image with dialog zoom
     pages/
@@ -60,17 +61,15 @@ client/
       alert-detail.tsx - Alert detail with update timeline
       news-page.tsx    - News list
       news-detail.tsx  - News article detail
-      tickets-page.tsx - Ticket list with create dialog + admin delete
+      tickets-page.tsx - Ticket list with create dialog + admin delete + marks notifications read
       ticket-detail.tsx - Ticket chat with real-time messages + resolution prompt
       profile-page.tsx - User profile, fullName update, billing link, theme, push notifications, service subscriptions
-      admin-portal.tsx - Admin tabs: users, services, alerts, news
+      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages
 server/
   index.ts   - Express server entry
   routes.ts  - All API routes + WebSocket + push notifications + email notifications + auth middleware
   storage.ts - Database storage interface (Drizzle ORM)
   email.ts   - SendGrid email utility (transactional emails)
-  onesignal.ts - OneSignal push notification utility (native iOS/Android)
-  firebase.ts  - Firebase Cloud Messaging utility (native iOS/Android)
   db.ts      - Database connection
   seed.ts    - Seed data for initial setup
 shared/
@@ -103,24 +102,22 @@ shared/
 - `GET /api/private-messages/unread-count` - Get unread message count
 - `DELETE /api/private-messages/:id` - Delete own private message (customer, verifies recipient)
 - `PATCH /api/private-messages/:id/read` - Mark message as read
-- `POST /api/push/subscribe` - Subscribe to push notifications
+- `GET /api/ticket-notifications/unread-count` - Get unread ticket notification count
+- `POST /api/ticket-notifications/mark-read` - Mark all ticket notifications as read
+- `POST /api/push/subscribe` - Subscribe to VAPID push notifications
 - `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 - `GET /api/push/vapid-key` - Get VAPID public key
-- `POST /api/onesignal/register` - Register OneSignal player ID for native push
-- `POST /api/onesignal/unregister` - Remove OneSignal player ID
-- `POST /api/fcm/register` - Register Firebase Cloud Messaging token for native push
-- `POST /api/fcm/unregister` - Remove FCM token
 - Admin routes under `/api/admin/...`
 
 ## Notification Triggers
-- **New ticket created**: Push + email to all admins with customer details
-- **Admin replies to ticket**: Push + email to customer
-- **Customer replies to ticket**: Push + email to all admins
-- **Ticket closed**: Push + email to all admins
-- **New news story posted**: Push + email to all customers
-- **Service status changed**: Push + email to subscribed customers
-- **New service alert created**: Push + email to subscribed customers
-- **Alert updated**: Push to subscribed customers
+- **New ticket created**: VAPID Push + email + in-app badge to all admins
+- **Admin replies to ticket**: VAPID Push + email + in-app badge to customer
+- **Customer replies to ticket**: VAPID Push + email + in-app badge to all admins
+- **Ticket closed**: VAPID Push + email + in-app badge to all admins
+- **New news story posted**: VAPID Push + email to all customers
+- **Service status changed**: VAPID Push + email to subscribed customers
+- **New service alert created**: VAPID Push + email to subscribed customers
+- **Alert updated**: VAPID Push to subscribed customers
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string
@@ -128,7 +125,4 @@ shared/
 - `VAPID_PUBLIC_KEY` - Web Push VAPID public key
 - `VAPID_PRIVATE_KEY` - Web Push VAPID private key (secret)
 - `VITE_VAPID_PUBLIC_KEY` - VAPID public key for frontend
-- `ONESIGNAL_APP_ID` - OneSignal App ID for native push
-- `ONESIGNAL_REST_API_KEY` - OneSignal REST API key for native push
-- `FIREBASE_SERVICE_ACCOUNT_JSON` - Firebase service account JSON for FCM push
 - SendGrid configured via Replit connector integration

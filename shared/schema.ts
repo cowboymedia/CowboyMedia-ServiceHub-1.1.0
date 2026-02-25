@@ -12,8 +12,6 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("customer"),
   subscribedServices: text("subscribed_services").array().default(sql`'{}'::text[]`),
   theme: text("theme").notNull().default("light"),
-  onesignalPlayerId: text("onesignal_player_id"),
-  fcmToken: text("fcm_token"),
 });
 
 export const services = pgTable("services", {
@@ -84,6 +82,16 @@ export const privateMessages = pgTable("private_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const ticketNotifications = pgTable("ticket_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  ticketId: varchar("ticket_id").notNull(),
+  type: text("type").notNull(),
+  message: text("message").notNull(),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -102,6 +110,7 @@ export const insertNewsStorySchema = createInsertSchema(newsStories).omit({ id: 
 export const insertTicketSchema = createInsertSchema(tickets).omit({ id: true, createdAt: true, closedAt: true });
 export const insertTicketMessageSchema = createInsertSchema(ticketMessages).omit({ id: true, createdAt: true });
 export const insertPrivateMessageSchema = createInsertSchema(privateMessages).omit({ id: true, createdAt: true, readAt: true });
+export const insertTicketNotificationSchema = createInsertSchema(ticketNotifications).omit({ id: true, createdAt: true, readAt: true });
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
 
 // Types
@@ -121,6 +130,8 @@ export type InsertTicketMessage = z.infer<typeof insertTicketMessageSchema>;
 export type TicketMessage = typeof ticketMessages.$inferSelect;
 export type InsertPrivateMessage = z.infer<typeof insertPrivateMessageSchema>;
 export type PrivateMessage = typeof privateMessages.$inferSelect;
+export type InsertTicketNotification = z.infer<typeof insertTicketNotificationSchema>;
+export type TicketNotification = typeof ticketNotifications.$inferSelect;
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 

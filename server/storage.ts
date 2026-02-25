@@ -7,8 +7,9 @@ import {
   type Ticket, type InsertTicket,
   type TicketMessage, type InsertTicketMessage,
   type PrivateMessage, type InsertPrivateMessage,
+  type TicketNotification, type InsertTicketNotification,
   type PushSubscription, type InsertPushSubscription,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, pushSubscriptions,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
@@ -58,6 +59,12 @@ export interface IStorage {
   getUnreadPrivateMessageCount(userId: string): Promise<number>;
   markPrivateMessageRead(id: string): Promise<PrivateMessage | undefined>;
   deletePrivateMessage(id: string): Promise<void>;
+
+  createTicketNotification(notification: InsertTicketNotification): Promise<TicketNotification>;
+  getUnreadTicketNotificationCount(userId: string): Promise<number>;
+  getTicketNotificationsByUser(userId: string): Promise<TicketNotification[]>;
+  markTicketNotificationsRead(userId: string): Promise<void>;
+  deleteTicketNotificationsByTicket(ticketId: string): Promise<void>;
 
   getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
@@ -194,6 +201,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTicket(id: string): Promise<void> {
     await db.delete(ticketMessages).where(eq(ticketMessages.ticketId, id));
+    await db.delete(ticketNotifications).where(eq(ticketNotifications.ticketId, id));
     await db.delete(tickets).where(eq(tickets.id, id));
   }
 
@@ -231,6 +239,28 @@ export class DatabaseStorage implements IStorage {
 
   async deletePrivateMessage(id: string): Promise<void> {
     await db.delete(privateMessages).where(eq(privateMessages.id, id));
+  }
+
+  async createTicketNotification(notification: InsertTicketNotification): Promise<TicketNotification> {
+    const [created] = await db.insert(ticketNotifications).values(notification).returning();
+    return created;
+  }
+
+  async getUnreadTicketNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(ticketNotifications).where(and(eq(ticketNotifications.userId, userId), isNull(ticketNotifications.readAt)));
+    return result[0]?.count ?? 0;
+  }
+
+  async getTicketNotificationsByUser(userId: string): Promise<TicketNotification[]> {
+    return db.select().from(ticketNotifications).where(eq(ticketNotifications.userId, userId)).orderBy(desc(ticketNotifications.createdAt));
+  }
+
+  async markTicketNotificationsRead(userId: string): Promise<void> {
+    await db.update(ticketNotifications).set({ readAt: new Date() }).where(and(eq(ticketNotifications.userId, userId), isNull(ticketNotifications.readAt)));
+  }
+
+  async deleteTicketNotificationsByTicket(ticketId: string): Promise<void> {
+    await db.delete(ticketNotifications).where(eq(ticketNotifications.ticketId, ticketId));
   }
 
   async getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]> {

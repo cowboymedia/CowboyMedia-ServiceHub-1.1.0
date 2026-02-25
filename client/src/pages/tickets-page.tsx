@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -116,6 +116,12 @@ export default function TicketsPage() {
       toast({ title: "Failed to create ticket", description: e.message, variant: "destructive" });
     },
   });
+
+  useEffect(() => {
+    apiRequest("POST", "/api/ticket-notifications/mark-read").then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-notifications/unread-count"] });
+    }).catch(() => {});
+  }, []);
 
   const openTickets = tickets?.filter((t) => t.status === "open") || [];
   const closedTickets = tickets?.filter((t) => t.status === "closed") || [];

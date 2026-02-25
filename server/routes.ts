@@ -12,8 +12,6 @@ import crypto from "crypto";
 import { promisify } from "util";
 import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple } from "./email";
-import { sendOneSignalToUser as sendOneSignalDirect, sendOneSignalToMultiple } from "./onesignal";
-import { sendFCMToUser } from "./firebase";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -105,28 +103,6 @@ async function sendPushToUser(userId: string, payload: { title: string; body: st
     }
   } catch (e) {
     console.error("Push notification error:", e);
-  }
-
-  try {
-    const user = await storage.getUser(userId);
-    if (user?.onesignalPlayerId) {
-      sendOneSignalDirect(user.onesignalPlayerId, {
-        title: payload.title,
-        body: payload.body,
-        url: payload.url,
-        data: payload.tag ? { tag: payload.tag } : undefined,
-      });
-    }
-    if (user?.fcmToken) {
-      sendFCMToUser(user.fcmToken, {
-        title: payload.title,
-        body: payload.body,
-        url: payload.url,
-        data: payload.tag ? { tag: payload.tag } : undefined,
-      });
-    }
-  } catch (e) {
-    console.error("Native push notification error:", e);
   }
 }
 
@@ -319,6 +295,12 @@ export async function registerRoutes(
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
         });
+        storage.createTicketNotification({
+          userId: admin.id,
+          ticketId: ticket.id,
+          type: "new_ticket",
+          message: `New ticket from ${customer?.fullName}: ${ticket.subject}`,
+        });
         if (admin.email && customer) {
           sendEmail(admin.email, `New Support Ticket: ${ticket.subject}`,
             `<h2>New Support Ticket</h2>
@@ -367,6 +349,12 @@ export async function registerRoutes(
             body: `Ticket Closed: ${ticket.subject}`,
             url: `/tickets/${ticket.id}`,
             tag: `ticket-${ticket.id}`,
+          });
+          storage.createTicketNotification({
+            userId: admin.id,
+            ticketId: ticket.id,
+            type: "ticket_closed",
+            message: `Ticket closed: ${ticket.subject}`,
           });
           if (admin.email && customer) {
             sendEmail(admin.email, `Ticket Closed: ${ticket.subject}`,
@@ -468,6 +456,12 @@ export async function registerRoutes(
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
         });
+        storage.createTicketNotification({
+          userId: ticket.customerId,
+          ticketId: ticket.id,
+          type: "ticket_reply",
+          message: `New reply on: ${ticket.subject}`,
+        });
         const customer = await storage.getUser(ticket.customerId);
         if (customer?.email) {
           sendEmail(customer.email, `New Reply to Your Support Ticket: ${ticket.subject}`,
@@ -487,6 +481,12 @@ export async function registerRoutes(
             body: `${user.fullName}: ${ticket.subject}`,
             url: `/tickets/${ticket.id}`,
             tag: `ticket-${ticket.id}`,
+          });
+          storage.createTicketNotification({
+            userId: admin.id,
+            ticketId: ticket.id,
+            type: "ticket_reply",
+            message: `${user.fullName} replied: ${ticket.subject}`,
           });
           if (admin.email) {
             sendEmail(admin.email, `New Ticket Message: ${ticket.subject}`,
@@ -862,6 +862,25 @@ export async function registerRoutes(
     }
   });
 
+  // Ticket notification routes
+  app.get("/api/ticket-notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadTicketNotificationCount(req.session.userId!);
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/ticket-notifications/mark-read", requireAuth, async (req, res) => {
+    try {
+      await storage.markTicketNotificationsRead(req.session.userId!);
+      res.json({ message: "Notifications marked as read" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Push notification subscription routes
   app.post("/api/push/subscribe", requireAuth, async (req, res) => {
     try {
@@ -895,54 +914,6 @@ export async function registerRoutes(
 
   app.get("/api/push/vapid-key", (_req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
-  });
-
-  app.post("/api/onesignal/register", requireAuth, async (req, res) => {
-    try {
-      const { playerId } = req.body;
-      if (!playerId) {
-        return res.status(400).json({ message: "playerId is required" });
-      }
-      const updated = await storage.updateUser(req.session.userId!, { onesignalPlayerId: playerId });
-      if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ message: "OneSignal player ID registered" });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.post("/api/onesignal/unregister", requireAuth, async (req, res) => {
-    try {
-      const updated = await storage.updateUser(req.session.userId!, { onesignalPlayerId: null });
-      if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ message: "OneSignal player ID removed" });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.post("/api/fcm/register", requireAuth, async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token) {
-        return res.status(400).json({ message: "token is required" });
-      }
-      const updated = await storage.updateUser(req.session.userId!, { fcmToken: token });
-      if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ message: "FCM token registered" });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.post("/api/fcm/unregister", requireAuth, async (req, res) => {
-    try {
-      const updated = await storage.updateUser(req.session.userId!, { fcmToken: null });
-      if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ message: "FCM token removed" });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
   });
 
   // WebSocket
