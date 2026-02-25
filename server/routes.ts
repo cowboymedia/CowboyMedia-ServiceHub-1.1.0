@@ -287,7 +287,7 @@ export async function registerRoutes(
       const customer = await storage.getUser(req.session.userId!);
       const service = ticket.serviceId ? await storage.getService(ticket.serviceId) : null;
       const allUsers = await storage.getAllUsers();
-      const admins = allUsers.filter(u => u.role === "admin");
+      const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
       for (const admin of admins) {
         sendPushToUser(admin.id, {
           title: "New Support Ticket",
@@ -316,11 +316,11 @@ export async function registerRoutes(
       }
 
       const autoReplyText = "Thank you for contacting CowboyMedia support through our ServiceHub app. We will review your support ticket and respond as quickly as possible. Thank you!";
-      const firstAdmin = admins[0];
-      if (firstAdmin) {
+      const supportUser = await storage.getUserByUsername("cowboymedia-support");
+      if (supportUser) {
         const autoMessage = await storage.createTicketMessage({
           ticketId: ticket.id,
-          senderId: firstAdmin.id,
+          senderId: supportUser.id,
           message: autoReplyText,
           imageUrl: null,
         });
@@ -374,7 +374,7 @@ export async function registerRoutes(
       if (status === "closed") {
         const customer = await storage.getUser(ticket.customerId);
         const allUsers = await storage.getAllUsers();
-        const admins = allUsers.filter(u => u.role === "admin");
+        const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
         for (const admin of admins) {
           sendPushToUser(admin.id, {
             title: "Ticket Closed",
@@ -506,7 +506,7 @@ export async function registerRoutes(
         }
       } else {
         const allAdminUsers = await storage.getAllUsers();
-        const admins = allAdminUsers.filter(u => u.role === "admin");
+        const admins = allAdminUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
         for (const admin of admins) {
           sendPushToUser(admin.id, {
             title: "New Ticket Message",
