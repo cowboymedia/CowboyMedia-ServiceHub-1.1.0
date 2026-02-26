@@ -139,7 +139,7 @@ export async function registerRoutes(
     })
   );
 
-  app.use("/uploads", requireAuth, (req, res, next) => {
+  app.use("/uploads", (req, res, next) => {
     const filePath = path.join(uploadsDir, path.basename(req.path));
     res.sendFile(filePath, (err) => {
       if (err) res.status(404).json({ message: "File not found" });
