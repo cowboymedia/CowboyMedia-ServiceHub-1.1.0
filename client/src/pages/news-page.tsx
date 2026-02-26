@@ -40,6 +40,7 @@ export default function NewsPage() {
                       src={story.imageUrl}
                       alt=""
                       className="w-28 h-20 rounded-md object-cover flex-shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
                   )}
                   <div className="flex-1 min-w-0 space-y-1.5">

@@ -6,8 +6,8 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { uploadedFiles, newsStories, tickets, ticketMessages } from "@shared/schema";
+import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
@@ -1307,6 +1307,22 @@ ${adminNotes ? `<p><strong>Admin Notes:</strong> ${adminNotes}</p>` : (updated.a
       wsClients.delete(ws);
     });
   });
+
+  (async () => {
+    try {
+      const allFiles = await db.select({ filename: uploadedFiles.filename }).from(uploadedFiles);
+      const validPaths = new Set(allFiles.map(f => `/uploads/${f.filename}`));
+
+      const allNews = await db.select().from(newsStories).where(isNotNull(newsStories.imageUrl));
+      for (const story of allNews) {
+        if (story.imageUrl && !validPaths.has(story.imageUrl)) {
+          await db.update(newsStories).set({ imageUrl: null }).where(eq(newsStories.id, story.id));
+        }
+      }
+    } catch (e) {
+      console.error("Cleanup orphaned image refs failed:", e);
+    }
+  })();
 
   return httpServer;
 }

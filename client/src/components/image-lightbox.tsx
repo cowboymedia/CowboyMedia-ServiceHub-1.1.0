@@ -44,6 +44,9 @@ import { useState } from "react";
 
 export function ClickableImage({ src, alt, className }: ClickableImageProps) {
   const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) return null;
 
   return (
     <>
@@ -52,6 +55,7 @@ export function ClickableImage({ src, alt, className }: ClickableImageProps) {
         alt={alt || "Image"}
         className={`cursor-pointer hover:opacity-90 transition-opacity ${className || ""}`}
         onClick={() => setOpen(true)}
+        onError={() => setFailed(true)}
         data-testid="img-clickable"
       />
       <ImageLightbox src={src} alt={alt} open={open} onOpenChange={setOpen} />
