@@ -171,6 +171,25 @@ export async function registerRoutes(
       req.session.userId = user.id;
       const { password: _, ...safe } = user;
       res.json(safe);
+
+      const allUsers = await storage.getAllUsers();
+      const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+      for (const admin of admins) {
+        sendPushToUser(admin.id, {
+          title: "New Customer Signup",
+          body: `${fullName} (${username}) just created an account`,
+          url: "/admin",
+          tag: `signup-${user.id}`,
+        });
+      }
+      const adminEmails = admins.map(a => a.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        sendEmailToMultiple(
+          adminEmails,
+          "New Customer Signup - CowboyMedia",
+          `<h2>New Customer Signup</h2><p><strong>${fullName}</strong> (${username}) just created an account.</p><p>Email: ${email}</p>`
+        ).catch(() => {});
+      }
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
