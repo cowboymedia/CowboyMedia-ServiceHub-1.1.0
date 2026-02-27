@@ -187,7 +187,11 @@ export async function registerRoutes(
         sendEmailToMultiple(
           adminEmails,
           "New Customer Signup - CowboyMedia",
-          `<h2>New Customer Signup</h2><p><strong>${fullName}</strong> (${username}) just created an account.</p><p>Email: ${email}</p>`
+          `<h2>New Customer Signup</h2>
+<p>A new customer has registered on CowboyMedia Service Hub.</p>
+<p><strong>Name:</strong> ${fullName}</p>
+<p><strong>Username:</strong> ${username}</p>
+<p><strong>Email:</strong> ${email}</p>`
         ).catch(() => {});
       }
     } catch (e: any) {
@@ -335,13 +339,14 @@ export async function registerRoutes(
         if (admin.email && customer) {
           sendEmail(admin.email, `New Support Ticket: ${ticket.subject}`,
             `<h2>New Support Ticket</h2>
+<p>A new support ticket has been submitted and requires your attention.</p>
 <p><strong>Customer:</strong> ${customer.fullName} (@${customer.username})</p>
 <p><strong>Email:</strong> ${customer.email}</p>
 <p><strong>Service:</strong> ${service?.name || 'N/A'}</p>
 <p><strong>Subject:</strong> ${ticket.subject}</p>
 <p><strong>Priority:</strong> ${ticket.priority}</p>
 <p><strong>Description:</strong></p>
-<p>${ticket.description}</p>`
+<blockquote>${ticket.description}</blockquote>`
           );
         }
       }
@@ -382,9 +387,10 @@ export async function registerRoutes(
         });
         if (customer?.email) {
           sendEmail(customer.email, `Support Ticket Received: ${ticket.subject}`,
-            `<h2>Support Ticket Received</h2>
+            `<h2>We've Received Your Ticket</h2>
 <p>${autoReplyText}</p>
-<p><strong>Ticket:</strong> ${ticket.subject}</p>`
+<p><strong>Ticket:</strong> ${ticket.subject}</p>
+<p>You will receive a notification when our team responds.</p>`
           );
         }
       } catch (autoReplyErr) {
@@ -458,10 +464,10 @@ export async function registerRoutes(
           if (admin.email && customer) {
             sendEmail(admin.email, `Ticket Closed: ${ticket.subject}`,
               `<h2>Ticket Closed</h2>
+<p>A support ticket has been closed by the customer.</p>
 <p><strong>Customer:</strong> ${customer.fullName} (@${customer.username})</p>
 <p><strong>Email:</strong> ${customer.email}</p>
-<p><strong>Subject:</strong> ${ticket.subject}</p>
-<p>This ticket has been closed.</p>`
+<p><strong>Subject:</strong> ${ticket.subject}</p>`
             );
           }
         }
@@ -528,9 +534,11 @@ export async function registerRoutes(
       const customer = await storage.getUser(ticket.customerId);
       if (customer?.email) {
         sendEmail(customer.email, `Your Ticket Has Been Claimed: ${ticket.subject}`,
-          `<h2>Your Support Ticket Has Been Claimed</h2>
-<p><strong>${admin.fullName}</strong> has claimed your ticket and will be assisting you.</p>
-<p><strong>Ticket:</strong> ${ticket.subject}</p>`
+          `<h2>Your Ticket Has Been Assigned</h2>
+<p>Great news! A team member has picked up your support ticket and will be assisting you shortly.</p>
+<p><strong>Assigned To:</strong> ${admin.fullName}</p>
+<p><strong>Ticket:</strong> ${ticket.subject}</p>
+<p>You will be notified when there is an update on your ticket.</p>`
         );
       }
 
@@ -638,11 +646,10 @@ export async function registerRoutes(
         const customer = await storage.getUser(ticket.customerId);
         if (customer?.email) {
           sendEmail(customer.email, `New Reply to Your Support Ticket: ${ticket.subject}`,
-            `<h2>New Reply to Your Support Ticket</h2>
-<p>There is a new reply to your ticket: <strong>${ticket.subject}</strong></p>
-<p><strong>Reply:</strong></p>
-<p>${req.body.message}</p>
-<p>If your issue has been resolved, you can close the ticket in the app. If not, please reply back.</p>`
+            `<h2>New Reply on Your Ticket</h2>
+<p>Our team has replied to your support ticket: <strong>${ticket.subject}</strong></p>
+<blockquote>${req.body.message}</blockquote>
+<p>If your issue has been resolved, you can close the ticket in the app. Otherwise, feel free to reply directly in the app.</p>`
           );
         }
       } else {
@@ -664,10 +671,10 @@ export async function registerRoutes(
           if (admin.email) {
             sendEmail(admin.email, `New Ticket Message: ${ticket.subject}`,
               `<h2>New Ticket Message</h2>
+<p>A customer has replied to a support ticket.</p>
 <p><strong>From:</strong> ${user.fullName} (@${user.username})</p>
 <p><strong>Ticket:</strong> ${ticket.subject}</p>
-<p><strong>Message:</strong></p>
-<p>${req.body.message}</p>`
+<blockquote>${req.body.message}</blockquote>`
             );
           }
         }
@@ -762,7 +769,11 @@ export async function registerRoutes(
           });
           if (u.email) {
             sendEmail(u.email, `Service Status Update: ${updated.name}`,
-              `<h2>Service Status Update</h2><p>The service <strong>${updated.name}</strong> status has changed to <strong>${updated.status}</strong>.</p>`
+              `<h2>Service Status Update</h2>
+<p>The status of a service you are subscribed to has been updated.</p>
+<p><strong>Service:</strong> ${updated.name}</p>
+<p><strong>New Status:</strong> ${updated.status}</p>
+<p>Log in to the app for more details.</p>`
             );
           }
         }
@@ -798,7 +809,11 @@ export async function registerRoutes(
         });
         if (u.email) {
           sendEmail(u.email, `New Service Alert: ${alert.title}`,
-            `<h2>New Service Alert</h2><p><strong>${alert.title}</strong></p><p>${alert.description}</p>`
+            `<h2>New Service Alert</h2>
+<p>An alert has been issued for a service you are subscribed to.</p>
+<p><strong>${alert.title}</strong></p>
+<blockquote>${alert.description}</blockquote>
+<p>Log in to the app for real-time updates on this alert.</p>`
           );
         }
       }
@@ -902,7 +917,10 @@ export async function registerRoutes(
         });
         if (u.email) {
           sendEmail(u.email, `Service Update: ${serviceName} - ${title}`,
-            `<h2>Service Update: ${serviceName}</h2><p><strong>${title}</strong></p><p>${description}</p>`
+            `<h2>Service Update: ${serviceName}</h2>
+<p>There is a new update for a service you are subscribed to.</p>
+<p><strong>${title}</strong></p>
+<blockquote>${description}</blockquote>`
           );
         }
       }
@@ -1029,13 +1047,12 @@ export async function registerRoutes(
       });
 
       if (recipient.email && sender) {
-        sendEmail(recipient.email, `Private Message from ${sender.username}`,
+        sendEmail(recipient.email, `Private Message from ${sender.fullName}`,
           `<h2>New Private Message</h2>
-<p>You have received a private message from <strong>${sender.fullName} (@${sender.username})</strong>.</p>
+<p>You have received a message from <strong>${sender.fullName}</strong>.</p>
 <p><strong>Subject:</strong> ${subject}</p>
-<p><strong>Message:</strong></p>
-<p>${body}</p>
-<p>Log in to ServiceHub to view and manage your messages.</p>`
+<blockquote>${body}</blockquote>
+<p>Log in to the app to view and manage your messages.</p>`
         );
       }
 
@@ -1162,12 +1179,12 @@ export async function registerRoutes(
       if (user.email) {
         sendEmail(user.email, `${typeLabel} Received`,
           `<h2>Your ${typeLabel} Has Been Received</h2>
-<p>Thank you for your submission. We have received the following:</p>
+<p>Thank you for your submission. We have received and logged the following:</p>
 <p><strong>Type:</strong> ${typeLabel}</p>
 <p><strong>Service:</strong> ${service?.name || "N/A"}</p>
 <p><strong>Title:</strong> ${title}</p>
-${description ? `<p><strong>Details:</strong> ${description}</p>` : ""}
-<p>We will review your submission and take action as needed. Thank you!</p>`
+${description ? `<blockquote>${description}</blockquote>` : ""}
+<p>Our team will review your submission and take action as needed. You will receive a notification when there is an update.</p>`
         );
       }
 
@@ -1183,11 +1200,12 @@ ${description ? `<p><strong>Details:</strong> ${description}</p>` : ""}
         if (admin.email) {
           sendEmail(admin.email, `New ${typeLabel} from ${user.fullName}`,
             `<h2>New ${typeLabel}</h2>
+<p>A customer has submitted a new ${typeLabel.toLowerCase()}.</p>
 <p><strong>Customer:</strong> ${user.fullName} (@${user.username})</p>
 <p><strong>Email:</strong> ${user.email}</p>
 <p><strong>Service:</strong> ${service?.name || "N/A"}</p>
 <p><strong>Title:</strong> ${title}</p>
-${description ? `<p><strong>Details:</strong> ${description}</p>` : ""}`
+${description ? `<blockquote>${description}</blockquote>` : ""}`
           );
         }
       }
@@ -1234,10 +1252,10 @@ ${description ? `<p><strong>Details:</strong> ${description}</p>` : ""}`
         if (customer?.email) {
           sendEmail(customer.email, `${typeLabel} Update: ${existing.title}`,
             `<h2>${typeLabel} Status Update</h2>
-<p>Your submission has been updated:</p>
+<p>There has been an update to your submission.</p>
 <p><strong>Title:</strong> ${existing.title}</p>
 <p><strong>New Status:</strong> ${statusLabel}</p>
-${adminNotes ? `<p><strong>Admin Notes:</strong> ${adminNotes}</p>` : (updated.adminNotes ? `<p><strong>Admin Notes:</strong> ${updated.adminNotes}</p>` : "")}
+${adminNotes ? `<blockquote>${adminNotes}</blockquote>` : (updated.adminNotes ? `<blockquote>${updated.adminNotes}</blockquote>` : "")}
 <p>Thank you for using CowboyMedia!</p>`
           );
         }
