@@ -29,6 +29,7 @@ import ProfilePage from "@/pages/profile-page";
 import AdminPortal from "@/pages/admin-portal";
 import MessagesPage from "@/pages/messages-page";
 import ReportRequestPage from "@/pages/report-request-page";
+import ServiceUpdatesPage from "@/pages/service-updates-page";
 
 function AppRouter() {
   return (
@@ -43,6 +44,7 @@ function AppRouter() {
       <Route path="/tickets/:id" component={TicketDetail} />
       <Route path="/profile" component={ProfilePage} />
       <Route path="/messages" component={MessagesPage} />
+      <Route path="/service-updates" component={ServiceUpdatesPage} />
       <Route path="/report-request" component={ReportRequestPage} />
       <Route path="/admin" component={AdminPortal} />
       <Route component={NotFound} />

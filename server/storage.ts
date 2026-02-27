@@ -12,7 +12,8 @@ import {
   type QuickResponse, type InsertQuickResponse,
   type ReportRequest, type InsertReportRequest,
   type ReportNotification, type InsertReportNotification,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications,
+  type ServiceUpdate, type InsertServiceUpdate,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
@@ -96,6 +97,10 @@ export interface IStorage {
   createContentNotificationBulk(userIds: string[], category: string, message: string, referenceId?: string): Promise<void>;
   getUnreadContentNotificationCounts(userId: string): Promise<Record<string, number>>;
   markContentNotificationsRead(userId: string, category: string): Promise<void>;
+
+  getAllServiceUpdates(): Promise<ServiceUpdate[]>;
+  createServiceUpdate(update: InsertServiceUpdate): Promise<ServiceUpdate>;
+  deleteServiceUpdate(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -403,6 +408,19 @@ export class DatabaseStorage implements IStorage {
 
   async markContentNotificationsRead(userId: string, category: string): Promise<void> {
     await db.update(contentNotifications).set({ readAt: new Date() }).where(and(eq(contentNotifications.userId, userId), eq(contentNotifications.category, category), isNull(contentNotifications.readAt)));
+  }
+
+  async getAllServiceUpdates(): Promise<ServiceUpdate[]> {
+    return db.select().from(serviceUpdates).orderBy(desc(serviceUpdates.createdAt));
+  }
+
+  async createServiceUpdate(update: InsertServiceUpdate): Promise<ServiceUpdate> {
+    const [created] = await db.insert(serviceUpdates).values(update).returning();
+    return created;
+  }
+
+  async deleteServiceUpdate(id: string): Promise<void> {
+    await db.delete(serviceUpdates).where(eq(serviceUpdates.id, id));
   }
 }
 

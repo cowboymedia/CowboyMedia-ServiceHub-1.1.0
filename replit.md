@@ -64,8 +64,9 @@ client/
       tickets-page.tsx - Ticket list with create dialog + admin delete + marks notifications read
       ticket-detail.tsx - Ticket chat with real-time messages + resolution prompt + admin quick response dropdown
       profile-page.tsx - User profile, fullName update, billing link, theme, push notifications, service subscriptions
+      service-updates-page.tsx - Service updates list with delete capability
       report-request-page.tsx - Report content issues or request movies/series
-      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses, reports/requests
+      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses, service updates, reports/requests
 server/
   index.ts   - Express server entry
   routes.ts  - All API routes + WebSocket + push notifications + email notifications + auth middleware
@@ -110,6 +111,9 @@ shared/
 - `PATCH /api/private-messages/:id/read` - Mark message as read
 - `GET /api/ticket-notifications/unread-count` - Get unread ticket notification count
 - `POST /api/ticket-notifications/mark-read` - Mark all ticket notifications as read
+- `GET /api/service-updates` - Get all service updates
+- `POST /api/admin/service-updates` - Create service update (admin only, sends push+email to subscribed customers)
+- `DELETE /api/service-updates/:id` - Delete service update (any authenticated user)
 - `GET /api/content-notifications/counts` - Get unread content notification counts by category
 - `POST /api/content-notifications/mark-read` - Mark content notifications as read for a category
 - `POST /api/push/subscribe` - Subscribe to VAPID push notifications

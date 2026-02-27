@@ -18,13 +18,14 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Activity, AlertTriangle, Newspaper, MessageSquare, User, Shield, LogOut, Mail, FileText } from "lucide-react";
+import { LayoutDashboard, Activity, AlertTriangle, Newspaper, MessageSquare, User, Shield, LogOut, Mail, FileText, RefreshCw } from "lucide-react";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 
 const categoryMap: Record<string, string> = {
   "Services": "services",
   "Alerts": "alerts",
   "News": "news",
+  "Service Updates": "service-updates",
   "Admin Portal": "admin-reports",
 };
 
@@ -96,6 +97,7 @@ export function AppSidebar() {
     { title: "Services", url: "/services", icon: Activity },
     { title: "Alerts", url: "/alerts", icon: AlertTriangle },
     { title: "News", url: "/news", icon: Newspaper },
+    { title: "Service Updates", url: "/service-updates", icon: RefreshCw },
     { title: "Tickets", url: "/tickets", icon: MessageSquare },
     { title: "Messages", url: "/messages", icon: Mail },
     { title: "Report/Request", url: "/report-request", icon: FileText },

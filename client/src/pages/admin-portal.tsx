@@ -17,9 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send, Clock, Zap, FileText } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send, Clock, Zap, FileText, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
-import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest } from "@shared/schema";
+import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -1271,6 +1271,171 @@ function ReportsRequestsTab() {
   );
 }
 
+function ServiceUpdatesTab() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const { data: updates, isLoading } = useQuery<ServiceUpdate[]>({
+    queryKey: ["/api/service-updates"],
+  });
+
+  const { data: services } = useQuery<Service[]>({
+    queryKey: ["/api/services"],
+  });
+
+  const createSchema = z.object({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().min(1, "Description is required"),
+    serviceId: z.string().min(1, "Service is required"),
+  });
+
+  const form = useForm<z.infer<typeof createSchema>>({
+    resolver: zodResolver(createSchema),
+    defaultValues: { title: "", description: "", serviceId: "" },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof createSchema>) => {
+      await apiRequest("POST", "/api/admin/service-updates", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/service-updates"] });
+      toast({ title: "Service update created and notifications sent" });
+      form.reset();
+      setOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/service-updates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/service-updates"] });
+      toast({ title: "Service update deleted" });
+    },
+  });
+
+  const getServiceName = (serviceId: string) => {
+    return services?.find(s => s.id === serviceId)?.name || "Unknown";
+  };
+
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold" data-testid="text-admin-service-updates-title">Service Updates</h2>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-service-update"><Plus className="w-4 h-4 mr-2" />Add Service Update</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Service Update</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit((data) => createMutation.mutate(data))} className="space-y-4">
+                <FormField control={form.control} name="serviceId" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Service</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-service-update-service">
+                          <SelectValue placeholder="Select a service" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {services?.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="title" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Update title" data-testid="input-service-update-title" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} rows={4} placeholder="Describe the update..." data-testid="input-service-update-description" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-submit-service-update">
+                  {createMutation.isPending ? "Creating..." : "Create & Notify Subscribers"}
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {!updates || updates.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-admin-updates">
+            No service updates yet
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {updates.map((update) => (
+            <Card key={update.id} data-testid={`card-admin-update-${update.id}`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base">{update.title}</CardTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline">{getServiceName(update.serviceId)}</Badge>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {format(new Date(update.createdAt), "MMM d, yyyy h:mm a")}
+                      </span>
+                    </div>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" data-testid={`button-admin-delete-update-${update.id}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Service Update?</AlertDialogTitle>
+                        <AlertDialogDescription>This will permanently remove this service update.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(update.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap">{update.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin } = useAuth();
 
@@ -1293,6 +1458,7 @@ export default function AdminPortal() {
     { key: "news", label: "News", icon: Newspaper, color: "text-purple-500", bg: "bg-purple-500/10" },
     { key: "messages", label: "Messages", icon: Mail, color: "text-rose-500", bg: "bg-rose-500/10" },
     { key: "quick-responses", label: "Quick Responses", icon: Zap, color: "text-orange-500", bg: "bg-orange-500/10" },
+    { key: "service-updates", label: "Service Updates", icon: RefreshCw, color: "text-teal-500", bg: "bg-teal-500/10" },
     { key: "reports-requests", label: "Reports/Requests", icon: FileText, color: "text-cyan-500", bg: "bg-cyan-500/10" },
   ];
 
@@ -1304,6 +1470,7 @@ export default function AdminPortal() {
       case "news": return <NewsTab />;
       case "messages": return <MessagesTab />;
       case "quick-responses": return <QuickResponsesTab />;
+      case "service-updates": return <ServiceUpdatesTab />;
       case "reports-requests": return <ReportsRequestsTab />;
       default: return null;
     }

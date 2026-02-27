@@ -6,7 +6,7 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles, newsStories, tickets, ticketMessages } from "@shared/schema";
+import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema } from "@shared/schema";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -864,6 +864,60 @@ export async function registerRoutes(
     try {
       await storage.deleteAlert(req.params.id);
       res.json({ message: "Alert deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/service-updates", requireAuth, async (req, res) => {
+    try {
+      const updates = await storage.getAllServiceUpdates();
+      res.json(updates);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/service-updates", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertServiceUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Title, description, and serviceId are required" });
+      }
+      const { title, description, serviceId } = parsed.data;
+      const update = await storage.createServiceUpdate({ title, description, serviceId });
+
+      const service = await storage.getService(serviceId);
+      const serviceName = service?.name || "Unknown Service";
+      broadcast({ type: "new_service_update", update });
+
+      const allUsers = await storage.getAllUsers();
+      const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(serviceId));
+      for (const u of subscribedCustomers) {
+        sendPushToUser(u.id, {
+          title: `Service Update: ${serviceName}`,
+          body: title,
+          url: "/service-updates",
+          tag: `service-update-${update.id}`,
+        });
+        if (u.email) {
+          sendEmail(u.email, `Service Update: ${serviceName} - ${title}`,
+            `<h2>Service Update: ${serviceName}</h2><p><strong>${title}</strong></p><p>${description}</p>`
+          );
+        }
+      }
+      const subIds = subscribedCustomers.map(u => u.id);
+      storage.createContentNotificationBulk(subIds, "service-updates", title, update.id).catch(() => {});
+      res.json(update);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/service-updates/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteServiceUpdate(req.params.id);
+      res.json({ message: "Service update deleted" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
