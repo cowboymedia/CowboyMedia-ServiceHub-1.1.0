@@ -62,7 +62,13 @@ self.addEventListener('push', (event) => {
     renotify: true,
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(
+    self.registration.showNotification(data.title, options).then(() => {
+      if (self.navigator && self.navigator.setAppBadge) {
+        self.navigator.setAppBadge().catch(() => {});
+      }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

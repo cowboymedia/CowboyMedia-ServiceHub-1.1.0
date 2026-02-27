@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -59,6 +60,19 @@ export function AppSidebar() {
     enabled: !!user,
   });
   const contentCounts = contentNotifData ?? {};
+
+  const totalBadge = unreadTicketCount + unreadCount + unreadReportCount +
+    Object.values(contentCounts).reduce((sum, c) => sum + c, 0);
+
+  useEffect(() => {
+    if ("setAppBadge" in navigator) {
+      if (totalBadge > 0) {
+        (navigator as any).setAppBadge(totalBadge).catch(() => {});
+      } else {
+        (navigator as any).clearAppBadge().catch(() => {});
+      }
+    }
+  }, [totalBadge]);
 
   const handleNavClick = () => {
     if (isMobile) {
