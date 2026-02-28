@@ -38,9 +38,9 @@ export default function NewsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-8">
+        <div className="flex flex-col gap-5">
           {news.map((story) => (
-            <Link key={story.id} href={`/news/${story.id}`}>
+            <Link key={story.id} href={`/news/${story.id}`} className="block">
               <Card className="hover-elevate cursor-pointer" data-testid={`card-news-${story.id}`}>
                 <CardContent className="flex gap-4 p-4">
                   {story.imageUrl && (
