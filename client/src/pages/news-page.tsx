@@ -38,7 +38,7 @@ export default function NewsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {news.map((story) => (
             <Link key={story.id} href={`/news/${story.id}`}>
               <Card className="hover-elevate cursor-pointer" data-testid={`card-news-${story.id}`}>
