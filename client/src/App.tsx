@@ -90,6 +90,7 @@ function SetupReminderDialog() {
     if (!user || user.role === "admin") return;
     if (user.setupReminderDismissed) return;
     if (sessionStorage.getItem("setupReminderShown") === "true") return;
+    if (sessionStorage.getItem("showWelcome") === "true") return;
 
     const checkSetup = async () => {
       const { isSubscribedToPush } = await import("@/lib/push-notifications");
