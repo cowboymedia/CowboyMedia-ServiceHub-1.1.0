@@ -12,7 +12,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Smartphone, BellRing, Settings, Mail } from "lucide-react";
+import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity } from "lucide-react";
+import { subscribeToPush, isPushSupported, isSubscribedToPush } from "@/lib/push-notifications";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 import { PullToRefresh } from "@/components/pull-to-refresh";
 import NotFound from "@/pages/not-found";
@@ -212,6 +213,9 @@ function PrivateMessagePopup() {
 
 function WelcomeDialog() {
   const [showWelcome, setShowWelcome] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
   useEffect(() => {
     const shouldShow = sessionStorage.getItem("showWelcome");
@@ -219,7 +223,23 @@ function WelcomeDialog() {
       setShowWelcome(true);
       sessionStorage.removeItem("showWelcome");
     }
+    isPushSupported().then((supported) => {
+      setPushSupported(supported);
+      if (supported) {
+        isSubscribedToPush().then(setPushEnabled);
+      }
+    });
   }, []);
+
+  const handleEnablePush = async () => {
+    setPushLoading(true);
+    try {
+      const success = await subscribeToPush();
+      setPushEnabled(success);
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   return (
     <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
@@ -239,12 +259,42 @@ function WelcomeDialog() {
               If you are on <strong className="text-foreground">Android and Google Chrome</strong>, be sure to go to settings and click <strong className="text-foreground">"Add To Home Screen"</strong>. If on <strong className="text-foreground">iPhone and Safari</strong>, click the share button and then <strong className="text-foreground">"Add To Home Screen"</strong>. This installs the web app on your phone.
             </p>
           </div>
+          {pushSupported && (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <BellRing className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <p>
+                  Stay informed with <strong className="text-foreground">push notifications</strong> for service alerts, ticket updates, and more.
+                </p>
+                {pushEnabled ? (
+                  <div className="flex items-center gap-2 text-green-500 font-medium" data-testid="text-push-enabled">
+                    <CheckCircle className="w-4 h-4" />
+                    Notifications Enabled!
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={pushLoading}
+                    onClick={handleEnablePush}
+                    data-testid="button-welcome-enable-push"
+                  >
+                    <BellRing className="w-4 h-4" />
+                    {pushLoading ? "Enabling..." : "Turn on Push Notifications"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <BellRing className="w-4 h-4 text-primary" />
+              <Activity className="w-4 h-4 text-primary" />
             </div>
             <p>
-              Also, be sure to enable <strong className="text-foreground">push notifications</strong> under <strong className="text-foreground">"Profile"</strong> and also select the services you want to receive notifications for.
+              Head over to <strong className="text-foreground">"Profile"</strong> and select the <strong className="text-foreground">services you subscribe to</strong> so you receive the right notifications for your services.
             </p>
           </div>
           <div className="flex items-start gap-3">
