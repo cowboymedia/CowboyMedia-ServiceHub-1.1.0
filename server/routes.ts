@@ -821,18 +821,21 @@ export async function registerRoutes(
 
   app.post("/api/admin/alerts", requireAdmin, async (req, res) => {
     try {
-      const alert = await storage.createAlert(req.body);
+      const { sendPush, sendEmail, ...alertData } = req.body;
+      const alert = await storage.createAlert(alertData);
       broadcast({ type: "new_alert", alert });
       const allUsers = await storage.getAllUsers();
       const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(alert.serviceId));
       for (const u of subscribedCustomers) {
-        sendPushToUser(u.id, {
-          title: "New Service Alert",
-          body: alert.title,
-          url: `/alerts/${alert.id}`,
-          tag: `alert-${alert.id}`,
-        });
-        if (u.email && u.emailNotifications !== false) {
+        if (sendPush !== false) {
+          sendPushToUser(u.id, {
+            title: "New Service Alert",
+            body: alert.title,
+            url: `/alerts/${alert.id}`,
+            tag: `alert-${alert.id}`,
+          });
+        }
+        if (sendEmail !== false && u.email && u.emailNotifications !== false) {
           sendTemplatedEmail(u.email, "customer_service_alert", {
             alert_title: alert.title,
             alert_description: alert.description,
@@ -850,15 +853,16 @@ export async function registerRoutes(
 
   app.post("/api/admin/alerts/:id/updates", requireAdmin, async (req, res) => {
     try {
+      const { sendPush, sendEmail, ...updateData } = req.body;
       const update = await storage.createAlertUpdate({
         alertId: req.params.id,
-        message: req.body.message,
-        status: req.body.status,
+        message: updateData.message,
+        status: updateData.status,
       });
-      if (req.body.status === "resolved") {
+      if (updateData.status === "resolved") {
         await storage.updateAlert(req.params.id, { status: "resolved", resolvedAt: new Date() });
       } else {
-        await storage.updateAlert(req.params.id, { status: req.body.status });
+        await storage.updateAlert(req.params.id, { status: updateData.status });
       }
       broadcast({ type: "alert_update", alertId: req.params.id, update });
       const alert = await storage.getAlert(req.params.id);
@@ -866,12 +870,21 @@ export async function registerRoutes(
         const allUsers = await storage.getAllUsers();
         const subscribedCustomers = allUsers.filter(u => u.role === "customer" && u.subscribedServices?.includes(alert.serviceId));
         for (const u of subscribedCustomers) {
-          sendPushToUser(u.id, {
-            title: `Alert Update: ${alert.title}`,
-            body: req.body.message,
-            url: `/alerts/${req.params.id}`,
-            tag: `alert-${req.params.id}`,
-          });
+          if (sendPush !== false) {
+            sendPushToUser(u.id, {
+              title: `Alert Update: ${alert.title}`,
+              body: updateData.message,
+              url: `/alerts/${req.params.id}`,
+              tag: `alert-${req.params.id}`,
+            });
+          }
+          if (sendEmail !== false && u.email && u.emailNotifications !== false) {
+            sendTemplatedEmail(u.email, "customer_service_alert", {
+              alert_title: `Update: ${alert.title}`,
+              alert_description: updateData.message,
+              customer_name: u.fullName,
+            });
+          }
         }
         const subIds = subscribedCustomers.map(u => u.id);
         storage.createContentNotificationBulk(subIds, "alerts", `Update: ${alert.title}`, alert.id).catch(() => {});

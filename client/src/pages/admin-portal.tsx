@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,11 +36,15 @@ const createAlertSchema = z.object({
   severity: z.string().default("warning"),
   status: z.string().default("investigating"),
   serviceId: z.string().min(1, "Service is required"),
+  sendPush: z.boolean().default(true),
+  sendEmail: z.boolean().default(true),
 });
 
 const addUpdateSchema = z.object({
   message: z.string().min(1, "Message is required"),
   status: z.string().min(1, "Status is required"),
+  sendPush: z.boolean().default(true),
+  sendEmail: z.boolean().default(true),
 });
 
 const createNewsSchema = z.object({
@@ -659,12 +664,12 @@ function AlertsTab() {
 
   const form = useForm({
     resolver: zodResolver(createAlertSchema),
-    defaultValues: { title: "", description: "", severity: "warning", status: "investigating", serviceId: "" },
+    defaultValues: { title: "", description: "", severity: "warning", status: "investigating", serviceId: "", sendPush: true, sendEmail: true },
   });
 
   const updateForm = useForm({
     resolver: zodResolver(addUpdateSchema),
-    defaultValues: { message: "", status: "investigating" },
+    defaultValues: { message: "", status: "investigating", sendPush: true, sendEmail: true },
   });
 
   const createMutation = useMutation({
@@ -769,6 +774,18 @@ function AlertsTab() {
                     </Select>
                   <FormMessage /></FormItem>
                 )} />
+                <FormField control={form.control} name="sendPush" render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel className="text-sm font-medium">Send Push Notification</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-alert-push" /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="sendEmail" render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <FormLabel className="text-sm font-medium">Send Email to Customers</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-alert-email" /></FormControl>
+                  </FormItem>
+                )} />
                 <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-submit-alert">
                   {createMutation.isPending ? "Creating..." : "Create Alert"}
                 </Button>
@@ -798,6 +815,18 @@ function AlertsTab() {
               )} />
               <FormField control={updateForm.control} name="message" render={({ field }) => (
                 <FormItem><FormLabel>Message</FormLabel><FormControl><Textarea data-testid="input-update-message" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={updateForm.control} name="sendPush" render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormLabel className="text-sm font-medium">Send Push Notification</FormLabel>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-update-push" /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={updateForm.control} name="sendEmail" render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormLabel className="text-sm font-medium">Send Email to Customers</FormLabel>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-update-email" /></FormControl>
+                </FormItem>
               )} />
               <Button type="submit" className="w-full" disabled={addUpdateMutation.isPending} data-testid="button-submit-update">
                 {addUpdateMutation.isPending ? "Posting..." : "Post Update"}
