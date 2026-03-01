@@ -64,7 +64,7 @@ client/
       tickets-page.tsx - Ticket list with create dialog + admin delete + marks notifications read
       ticket-detail.tsx - Ticket chat with real-time messages + resolution prompt + admin quick response dropdown
       profile-page.tsx - User profile, fullName update, billing link, theme, push notifications, service subscriptions
-      service-updates-page.tsx - Service updates list with delete capability
+      service-updates-page.tsx - Service updates list with delete capability + mature content warning overlay
       report-request-page.tsx - Report content issues, request movies/series, or report app issues/feature requests (with image/video attachment)
       admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses, service updates, reports/requests, email templates
 server/

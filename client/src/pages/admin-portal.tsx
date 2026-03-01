@@ -1554,11 +1554,12 @@ function ServiceUpdatesTab() {
     title: z.string().min(1, "Title is required"),
     description: z.string().min(1, "Description is required"),
     serviceId: z.string().min(1, "Service is required"),
+    matureContent: z.boolean().default(false),
   });
 
   const form = useForm<z.infer<typeof createSchema>>({
     resolver: zodResolver(createSchema),
-    defaultValues: { title: "", description: "", serviceId: "" },
+    defaultValues: { title: "", description: "", serviceId: "", matureContent: false },
   });
 
   const createMutation = useMutation({
@@ -1642,6 +1643,26 @@ function ServiceUpdatesTab() {
                     <FormMessage />
                   </FormItem>
                 )} />
+                <FormField control={form.control} name="matureContent" render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between border rounded-md px-3 py-2">
+                      <div>
+                        <FormLabel className="text-sm font-medium">Mature Content</FormLabel>
+                        <p className="text-xs text-muted-foreground">Warn customers before viewing this update</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={field.value}
+                        onClick={() => field.onChange(!field.value)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.value ? 'bg-destructive' : 'bg-input'}`}
+                        data-testid="switch-mature-content"
+                      >
+                        <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${field.value ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                  </FormItem>
+                )} />
                 <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-submit-service-update">
                   {createMutation.isPending ? "Creating..." : "Create & Notify Subscribers"}
                 </Button>
@@ -1665,8 +1686,9 @@ function ServiceUpdatesTab() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-base">{update.title}</CardTitle>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <Badge variant="outline">{getServiceName(update.serviceId)}</Badge>
+                      {update.matureContent && <Badge variant="destructive" className="text-xs" data-testid={`badge-mature-${update.id}`}>Mature</Badge>}
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {format(new Date(update.createdAt), "MMM d, yyyy h:mm a")}

@@ -147,6 +147,7 @@ export const serviceUpdates = pgTable("service_updates", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   serviceId: varchar("service_id").notNull(),
+  matureContent: boolean("mature_content").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

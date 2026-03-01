@@ -921,8 +921,8 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: "Title, description, and serviceId are required" });
       }
-      const { title, description, serviceId } = parsed.data;
-      const update = await storage.createServiceUpdate({ title, description, serviceId });
+      const { title, description, serviceId, matureContent } = parsed.data;
+      const update = await storage.createServiceUpdate({ title, description, serviceId, matureContent: matureContent ?? false });
 
       const service = await storage.getService(serviceId);
       const serviceName = service?.name || "Unknown Service";

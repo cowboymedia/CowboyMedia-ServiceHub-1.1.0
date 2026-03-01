@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -7,12 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trash2, Bell, Clock } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Trash2, Bell, Clock, ShieldAlert } from "lucide-react";
 import type { ServiceUpdate, Service } from "@shared/schema";
 
 export default function ServiceUpdatesPage() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
+  const [unlockedUpdates, setUnlockedUpdates] = useState<Set<string>>(new Set());
+  const [pendingUnlock, setPendingUnlock] = useState<string | null>(null);
 
   useEffect(() => {
     apiRequest("POST", "/api/content-notifications/mark-read", { category: "service-updates" })
@@ -57,6 +60,10 @@ export default function ServiceUpdatesPage() {
     });
   };
 
+  const isMatureHidden = (update: ServiceUpdate) => {
+    return update.matureContent && !isAdmin && !unlockedUpdates.has(update.id);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -73,6 +80,34 @@ export default function ServiceUpdatesPage() {
         <p className="text-sm text-muted-foreground mt-1">Latest service updates</p>
       </div>
 
+      <AlertDialog open={!!pendingUnlock} onOpenChange={(open) => { if (!open) setPendingUnlock(null); }}>
+        <AlertDialogContent data-testid="dialog-mature-warning">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-destructive" />
+              Mature Content Warning
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This service update has been flagged as containing mature content. Would you like to continue and view it, or close and return later?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-mature-close">Close</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingUnlock) {
+                  setUnlockedUpdates(prev => new Set(prev).add(pendingUnlock));
+                  setPendingUnlock(null);
+                }
+              }}
+              data-testid="button-mature-continue"
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {!updates || updates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -87,8 +122,14 @@ export default function ServiceUpdatesPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg" data-testid={`text-update-title-${update.id}`}>{update.title}</CardTitle>
-                  <CardDescription className="flex items-center gap-2 mt-1">
+                  <CardDescription className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge variant="outline" data-testid={`badge-service-${update.id}`}>{getServiceName(update.serviceId)}</Badge>
+                    {update.matureContent && (
+                      <Badge variant="destructive" className="text-xs" data-testid={`badge-mature-${update.id}`}>
+                        <ShieldAlert className="w-3 h-3 mr-1" />
+                        Mature
+                      </Badge>
+                    )}
                     <span className="flex items-center gap-1 text-xs">
                       <Clock className="w-3 h-3" />
                       {formatDate(update.createdAt)}
@@ -108,7 +149,19 @@ export default function ServiceUpdatesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm whitespace-pre-wrap" data-testid={`text-update-desc-${update.id}`}>{update.description}</p>
+              {isMatureHidden(update) ? (
+                <div
+                  className="flex flex-col items-center justify-center py-4 px-3 border border-dashed rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setPendingUnlock(update.id)}
+                  data-testid={`mature-overlay-${update.id}`}
+                >
+                  <ShieldAlert className="w-8 h-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-muted-foreground">This update contains mature content</p>
+                  <p className="text-xs text-muted-foreground mt-1">Click to view</p>
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap" data-testid={`text-update-desc-${update.id}`}>{update.description}</p>
+              )}
             </CardContent>
           </Card>
         ))
