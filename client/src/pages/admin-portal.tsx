@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, Send, Clock, Zap, FileText, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff } from "lucide-react";
 import { format } from "date-fns";
 import { ImageLightbox } from "@/components/image-lightbox";
 import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate } from "@shared/schema";
@@ -61,8 +61,18 @@ function UsersTab() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
+  useEffect(() => {
+    apiRequest("POST", "/api/content-notifications/mark-read", { category: "admin-users" })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["/api/content-notifications/counts"] }))
+      .catch(() => {});
+  }, []);
+
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+  });
+
+  const { data: pushStatus } = useQuery<Record<string, boolean>>({
+    queryKey: ["/api/admin/users/push-status"],
   });
 
   const form = useForm({
@@ -195,6 +205,7 @@ function UsersTab() {
                 <TableHead>Username</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Notifications</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -206,6 +217,16 @@ function UsersTab() {
                   <TableCell className="text-sm">{u.email}</TableCell>
                   <TableCell>
                     <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs capitalize">{u.role}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span title={pushStatus?.[u.id] ? "Push ON" : "Push OFF"} data-testid={`icon-push-${u.id}`}>
+                        {pushStatus?.[u.id] ? <Bell className="w-4 h-4 text-green-500" /> : <BellOff className="w-4 h-4 text-muted-foreground/40" />}
+                      </span>
+                      <span title={u.emailNotifications !== false ? "Email ON" : "Email OFF"} data-testid={`icon-email-${u.id}`}>
+                        {u.emailNotifications !== false ? <Mail className="w-4 h-4 text-green-500" /> : <MailX className="w-4 h-4 text-muted-foreground/40" />}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -1449,6 +1470,17 @@ function ServiceUpdatesTab() {
 export default function AdminPortal() {
   const { isAdmin } = useAuth();
 
+  const { data: contentCounts } = useQuery<Record<string, number>>({
+    queryKey: ["/api/content-notifications/counts"],
+    refetchInterval: 15000,
+    enabled: isAdmin,
+  });
+
+  const tileBadgeMap: Record<string, string> = {
+    "users": "admin-users",
+    "reports-requests": "admin-reports",
+  };
+
   if (!isAdmin) {
     return (
       <div className="text-center py-12">
@@ -1497,13 +1529,20 @@ export default function AdminPortal() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {sections.map((s) => {
             const Icon = s.icon;
+            const badgeCategory = tileBadgeMap[s.key];
+            const badgeCount = badgeCategory && contentCounts ? (contentCounts[badgeCategory] ?? 0) : 0;
             return (
               <button
                 key={s.key}
                 onClick={() => setActiveSection(s.key)}
-                className="flex flex-col items-center justify-center gap-3 p-6 sm:p-8 rounded-xl border bg-card hover:bg-accent/50 transition-colors active:scale-[0.97] focus:outline-none focus:ring-2 focus:ring-ring"
+                className="relative flex flex-col items-center justify-center gap-3 p-6 sm:p-8 rounded-xl border bg-card hover:bg-accent/50 transition-colors active:scale-[0.97] focus:outline-none focus:ring-2 focus:ring-ring"
                 data-testid={`tile-admin-${s.key}`}
               >
+                {badgeCount > 0 && (
+                  <Badge variant="destructive" className="absolute top-2 right-2 text-xs px-1.5 py-0.5 min-w-[20px] text-center" data-testid={`badge-tile-${s.key}`}>
+                    {badgeCount}
+                  </Badge>
+                )}
                 <div className={`rounded-full p-4 ${s.bg}`}>
                   <Icon className={`w-7 h-7 sm:w-8 sm:h-8 ${s.color}`} />
                 </div>

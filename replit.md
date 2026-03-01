@@ -122,6 +122,7 @@ shared/
 - Admin routes under `/api/admin/...`
 
 ## Notification Triggers
+- **New customer signup**: VAPID Push + email + in-app badge (Admin Portal "Users" tile) to all admins
 - **New ticket created**: VAPID Push + email + in-app badge to all admins
 - **Admin replies to ticket**: VAPID Push + email* + in-app badge to customer
 - **Customer replies to ticket**: VAPID Push + email + in-app badge to all admins

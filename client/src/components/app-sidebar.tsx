@@ -87,6 +87,7 @@ export function AppSidebar() {
     if (title === "Tickets") return unreadTicketCount;
     if (title === "Messages") return unreadCount;
     if (title === "Report/Request") return unreadReportCount;
+    if (title === "Admin Portal") return (contentCounts["admin-reports"] ?? 0) + (contentCounts["admin-users"] ?? 0);
     const cat = categoryMap[title];
     if (cat) return contentCounts[cat] ?? 0;
     return 0;

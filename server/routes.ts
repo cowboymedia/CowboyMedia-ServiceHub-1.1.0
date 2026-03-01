@@ -194,6 +194,8 @@ export async function registerRoutes(
 <p><strong>Email:</strong> ${email}</p>`
         ).catch(() => {});
       }
+      const adminIds = admins.map(a => a.id);
+      storage.createContentNotificationBulk(adminIds, "admin-users", `New signup: ${fullName} (${username})`, user.id).catch(() => {});
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -691,6 +693,20 @@ export async function registerRoutes(
     const result = await storage.getAllUsers();
     const safe = result.map(({ password: _, ...u }) => u);
     res.json(safe);
+  });
+
+  app.get("/api/admin/users/push-status", requireAdmin, async (_req, res) => {
+    try {
+      const allSubs = await storage.getAllPushSubscriptions();
+      const userIdsWithPush = new Set(allSubs.map(s => s.userId));
+      const status: Record<string, boolean> = {};
+      for (const uid of userIdsWithPush) {
+        status[uid] = true;
+      }
+      res.json(status);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
