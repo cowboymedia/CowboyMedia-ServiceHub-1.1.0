@@ -33,6 +33,7 @@ const createAlertSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),
   severity: z.string().default("warning"),
+  status: z.string().default("investigating"),
   serviceId: z.string().min(1, "Service is required"),
 });
 
@@ -658,7 +659,7 @@ function AlertsTab() {
 
   const form = useForm({
     resolver: zodResolver(createAlertSchema),
-    defaultValues: { title: "", description: "", severity: "warning", serviceId: "" },
+    defaultValues: { title: "", description: "", severity: "warning", status: "investigating", serviceId: "" },
   });
 
   const updateForm = useForm({
@@ -751,6 +752,19 @@ function AlertsTab() {
                         <SelectItem value="info">Info</SelectItem>
                         <SelectItem value="warning">Warning</SelectItem>
                         <SelectItem value="critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  <FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger data-testid="select-alert-status"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="investigating">Investigating</SelectItem>
+                        <SelectItem value="identified">Identified</SelectItem>
+                        <SelectItem value="monitoring">Monitoring</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
                       </SelectContent>
                     </Select>
                   <FormMessage /></FormItem>
