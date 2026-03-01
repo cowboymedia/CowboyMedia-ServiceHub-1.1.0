@@ -60,6 +60,13 @@ function UsersTab() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [detailUser, setDetailUser] = useState<User | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRole, setEditRole] = useState("");
+  const [editEmailNotifications, setEditEmailNotifications] = useState(true);
+  const [editSubscribedServices, setEditSubscribedServices] = useState<string[]>([]);
 
   useEffect(() => {
     apiRequest("POST", "/api/content-notifications/mark-read", { category: "admin-users" })
@@ -73,6 +80,10 @@ function UsersTab() {
 
   const { data: pushStatus } = useQuery<Record<string, boolean>>({
     queryKey: ["/api/admin/users/push-status"],
+  });
+
+  const { data: services } = useQuery<Service[]>({
+    queryKey: ["/api/services"],
   });
 
   const form = useForm({
@@ -125,6 +136,49 @@ function UsersTab() {
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<User> }) => {
+      await apiRequest("PATCH", `/api/admin/users/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setDetailUser(null);
+      toast({ title: "User updated" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const openDetailDialog = (u: User) => {
+    setDetailUser(u);
+    setEditFullName(u.fullName);
+    setEditUsername(u.username);
+    setEditEmail(u.email);
+    setEditRole(u.role);
+    setEditEmailNotifications(u.emailNotifications !== false);
+    setEditSubscribedServices(u.subscribedServices || []);
+  };
+
+  const handleSaveUser = () => {
+    if (!detailUser) return;
+    updateUserMutation.mutate({
+      id: detailUser.id,
+      data: {
+        fullName: editFullName,
+        username: editUsername,
+        email: editEmail,
+        role: editRole,
+        emailNotifications: editEmailNotifications,
+        subscribedServices: editSubscribedServices,
+      },
+    });
+  };
+
+  const toggleService = (serviceId: string) => {
+    setEditSubscribedServices(prev =>
+      prev.includes(serviceId) ? prev.filter(s => s !== serviceId) : [...prev, serviceId]
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -193,6 +247,174 @@ function UsersTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!detailUser} onOpenChange={(open) => { if (!open) setDetailUser(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-user-detail">
+          <DialogHeader>
+            <DialogTitle data-testid="text-user-detail-title">
+              {detailUser?.fullName}
+            </DialogTitle>
+          </DialogHeader>
+          {detailUser && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Full Name</label>
+                  <Input
+                    value={editFullName}
+                    onChange={(e) => setEditFullName(e.target.value)}
+                    data-testid="input-edit-fullname"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Username</label>
+                  <Input
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    data-testid="input-edit-username"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-sm font-medium mb-1 block">Email</label>
+                  <Input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    data-testid="input-edit-email"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Role</label>
+                  <Select value={editRole} onValueChange={setEditRole}>
+                    <SelectTrigger data-testid="select-edit-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer">Customer</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="text-sm font-medium mb-1 block">Push Notifications</label>
+                  <div className="flex items-center gap-2 text-sm" data-testid="text-push-status">
+                    {pushStatus?.[detailUser.id] ? (
+                      <><Bell className="w-4 h-4 text-green-500" /> <span className="text-green-600">Enabled</span></>
+                    ) : (
+                      <><BellOff className="w-4 h-4 text-muted-foreground/40" /> <span className="text-muted-foreground">Not registered</span></>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border rounded-md px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">Email Notifications</p>
+                  <p className="text-xs text-muted-foreground">Receive email notifications for alerts, tickets, and updates</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={editEmailNotifications}
+                  onClick={() => setEditEmailNotifications(!editEmailNotifications)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${editEmailNotifications ? 'bg-primary' : 'bg-input'}`}
+                  data-testid="switch-email-notifications"
+                >
+                  <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${editEmailNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Subscribed Services</label>
+                {services && services.length > 0 ? (
+                  <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
+                    {services.map((s) => (
+                      <label
+                        key={s.id}
+                        className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/50 transition-colors"
+                        data-testid={`label-service-${s.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editSubscribedServices.includes(s.id)}
+                          onChange={() => toggleService(s.id)}
+                          className="rounded border-input h-4 w-4 accent-primary"
+                          data-testid={`checkbox-service-${s.id}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{s.name}</p>
+                          {s.description && <p className="text-xs text-muted-foreground truncate">{s.description}</p>}
+                        </div>
+                        <Badge variant="secondary" className="text-xs capitalize shrink-0">{s.status}</Badge>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No services configured</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {editSubscribedServices.length} service{editSubscribedServices.length !== 1 ? 's' : ''} selected
+                </p>
+              </div>
+
+              <div className="flex gap-2 justify-between pt-2">
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => {
+                      setDetailUser(null);
+                      setSelectedUser(detailUser);
+                      setResetDialogOpen(true);
+                    }}
+                    data-testid="button-detail-reset-password"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset Password
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="gap-1 text-destructive" data-testid="button-detail-delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete User?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete {detailUser.fullName}'s account. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => { deleteMutation.mutate(detailUser.id); setDetailUser(null); }}
+                          data-testid="button-confirm-delete-user"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setDetailUser(null)} data-testid="button-detail-cancel">
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={updateUserMutation.isPending}
+                    onClick={handleSaveUser}
+                    data-testid="button-detail-save"
+                  >
+                    {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <Skeleton className="h-40" />
       ) : (
@@ -211,7 +433,12 @@ function UsersTab() {
             </TableHeader>
             <TableBody>
               {users?.map((u) => (
-                <TableRow key={u.id} data-testid={`row-user-${u.id}`}>
+                <TableRow
+                  key={u.id}
+                  className="cursor-pointer"
+                  onClick={() => openDetailDialog(u)}
+                  data-testid={`row-user-${u.id}`}
+                >
                   <TableCell className="font-medium text-sm">{u.fullName}</TableCell>
                   <TableCell className="text-sm">{u.username}</TableCell>
                   <TableCell className="text-sm">{u.email}</TableCell>
@@ -229,7 +456,16 @@ function UsersTab() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openDetailDialog(u)}
+                        title="View/Edit User"
+                        data-testid={`button-view-user-${u.id}`}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
