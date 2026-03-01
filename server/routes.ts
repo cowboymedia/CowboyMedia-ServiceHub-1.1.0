@@ -13,9 +13,31 @@ import path from "path";
 import crypto from "crypto";
 import { promisify } from "util";
 import webpush from "web-push";
-import { sendEmail, sendEmailToMultiple } from "./email";
+import { sendEmail, sendEmailToMultiple, renderTemplate, getDefaultTemplate } from "./email";
 
 const scryptAsync = promisify(crypto.scrypt);
+
+async function sendTemplatedEmail(
+  to: string | string[],
+  templateKey: string,
+  variables: Record<string, string>,
+): Promise<void> {
+  const rendered = await renderTemplate(templateKey, variables);
+  const fallback = !rendered ? getDefaultTemplate(templateKey) : null;
+  const tpl = rendered || fallback;
+  if (!tpl) return;
+  const subject = rendered ? tpl.subject : replaceVarsSimple(tpl.subject, variables);
+  const body = rendered ? tpl.body : replaceVarsSimple(tpl.body, variables);
+  if (Array.isArray(to)) {
+    sendEmailToMultiple(to, subject, body).catch(() => {});
+  } else {
+    sendEmail(to, subject, body).catch(() => {});
+  }
+}
+
+function replaceVarsSimple(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => variables[key] !== undefined ? variables[key] : match);
+}
 
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -184,15 +206,11 @@ export async function registerRoutes(
       }
       const adminEmails = admins.map(a => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        sendEmailToMultiple(
-          adminEmails,
-          "New Customer Signup - CowboyMedia",
-          `<h2>New Customer Signup</h2>
-<p>A new customer has registered on CowboyMedia Service Hub.</p>
-<p><strong>Name:</strong> ${fullName}</p>
-<p><strong>Username:</strong> ${username}</p>
-<p><strong>Email:</strong> ${email}</p>`
-        ).catch(() => {});
+        sendTemplatedEmail(adminEmails, "admin_new_signup", {
+          customer_name: fullName,
+          customer_username: username,
+          customer_email: email,
+        });
       }
       const adminIds = admins.map(a => a.id);
       storage.createContentNotificationBulk(adminIds, "admin-users", `New signup: ${fullName} (${username})`, user.id).catch(() => {});
@@ -340,17 +358,15 @@ export async function registerRoutes(
           message: `New ticket from ${customer?.fullName}: ${ticket.subject}`,
         });
         if (admin.email && customer) {
-          sendEmail(admin.email, `New Support Ticket: ${ticket.subject}`,
-            `<h2>New Support Ticket</h2>
-<p>A new support ticket has been submitted and requires your attention.</p>
-<p><strong>Customer:</strong> ${customer.fullName} (@${customer.username})</p>
-<p><strong>Email:</strong> ${customer.email}</p>
-<p><strong>Service:</strong> ${service?.name || 'N/A'}</p>
-<p><strong>Subject:</strong> ${ticket.subject}</p>
-<p><strong>Priority:</strong> ${ticket.priority}</p>
-<p><strong>Description:</strong></p>
-<blockquote>${ticket.description}</blockquote>`
-          );
+          sendTemplatedEmail(admin.email, "admin_new_ticket", {
+            customer_name: customer.fullName,
+            customer_username: customer.username,
+            customer_email: customer.email,
+            service_name: service?.name || "N/A",
+            ticket_subject: ticket.subject,
+            ticket_priority: ticket.priority,
+            ticket_description: ticket.description,
+          });
         }
       }
 
@@ -389,12 +405,10 @@ export async function registerRoutes(
           message: `New reply on: ${ticket.subject}`,
         });
         if (customer?.email && customer.emailNotifications !== false) {
-          sendEmail(customer.email, `Support Ticket Received: ${ticket.subject}`,
-            `<h2>We've Received Your Ticket</h2>
-<p>${autoReplyText}</p>
-<p><strong>Ticket:</strong> ${ticket.subject}</p>
-<p>You will receive a notification when our team responds.</p>`
-          );
+          sendTemplatedEmail(customer.email, "customer_ticket_received", {
+            ticket_subject: ticket.subject,
+            customer_name: customer.fullName,
+          });
         }
       } catch (autoReplyErr) {
         console.error("Auto-reply error:", autoReplyErr);
@@ -465,13 +479,12 @@ export async function registerRoutes(
             message: `Ticket closed: ${ticket.subject}`,
           });
           if (admin.email && customer) {
-            sendEmail(admin.email, `Ticket Closed: ${ticket.subject}`,
-              `<h2>Ticket Closed</h2>
-<p>A support ticket has been closed by the customer.</p>
-<p><strong>Customer:</strong> ${customer.fullName} (@${customer.username})</p>
-<p><strong>Email:</strong> ${customer.email}</p>
-<p><strong>Subject:</strong> ${ticket.subject}</p>`
-            );
+            sendTemplatedEmail(admin.email, "admin_ticket_closed", {
+              customer_name: customer.fullName,
+              customer_username: customer.username,
+              customer_email: customer.email,
+              ticket_subject: ticket.subject,
+            });
           }
         }
       }
@@ -536,13 +549,11 @@ export async function registerRoutes(
 
       const customer = await storage.getUser(ticket.customerId);
       if (customer?.email && customer.emailNotifications !== false) {
-        sendEmail(customer.email, `Your Ticket Has Been Claimed: ${ticket.subject}`,
-          `<h2>Your Ticket Has Been Assigned</h2>
-<p>Great news! A team member has picked up your support ticket and will be assisting you shortly.</p>
-<p><strong>Assigned To:</strong> ${admin.fullName}</p>
-<p><strong>Ticket:</strong> ${ticket.subject}</p>
-<p>You will be notified when there is an update on your ticket.</p>`
-        );
+        sendTemplatedEmail(customer.email, "customer_ticket_claimed", {
+          admin_name: admin.fullName,
+          ticket_subject: ticket.subject,
+          customer_name: customer.fullName,
+        });
       }
 
       res.json(updated);
@@ -648,12 +659,11 @@ export async function registerRoutes(
         });
         const customer = await storage.getUser(ticket.customerId);
         if (customer?.email && customer.emailNotifications !== false) {
-          sendEmail(customer.email, `New Reply to Your Support Ticket: ${ticket.subject}`,
-            `<h2>New Reply on Your Ticket</h2>
-<p>Our team has replied to your support ticket: <strong>${ticket.subject}</strong></p>
-<blockquote>${req.body.message}</blockquote>
-<p>If your issue has been resolved, you can close the ticket in the app. Otherwise, feel free to reply directly in the app.</p>`
-          );
+          sendTemplatedEmail(customer.email, "customer_ticket_reply", {
+            ticket_subject: ticket.subject,
+            message: req.body.message,
+            customer_name: customer.fullName,
+          });
         }
       } else {
         const allAdminUsers = await storage.getAllUsers();
@@ -672,13 +682,12 @@ export async function registerRoutes(
             message: `${user.fullName} replied: ${ticket.subject}`,
           });
           if (admin.email) {
-            sendEmail(admin.email, `New Ticket Message: ${ticket.subject}`,
-              `<h2>New Ticket Message</h2>
-<p>A customer has replied to a support ticket.</p>
-<p><strong>From:</strong> ${user.fullName} (@${user.username})</p>
-<p><strong>Ticket:</strong> ${ticket.subject}</p>
-<blockquote>${req.body.message}</blockquote>`
-            );
+            sendTemplatedEmail(admin.email, "admin_ticket_reply", {
+              customer_name: user.fullName,
+              customer_username: user.username,
+              ticket_subject: ticket.subject,
+              message: req.body.message,
+            });
           }
         }
       }
@@ -785,13 +794,11 @@ export async function registerRoutes(
             tag: `service-${updated.id}`,
           });
           if (u.email && u.emailNotifications !== false) {
-            sendEmail(u.email, `Service Status Update: ${updated.name}`,
-              `<h2>Service Status Update</h2>
-<p>The status of a service you are subscribed to has been updated.</p>
-<p><strong>Service:</strong> ${updated.name}</p>
-<p><strong>New Status:</strong> ${updated.status}</p>
-<p>Log in to the app for more details.</p>`
-            );
+            sendTemplatedEmail(u.email, "customer_service_status", {
+              service_name: updated.name,
+              service_status: updated.status,
+              customer_name: u.fullName,
+            });
           }
         }
         storage.createContentNotificationBulk(subIds, "services", `${updated.name}: ${updated.status}`, updated.id).catch(() => {});
@@ -825,13 +832,11 @@ export async function registerRoutes(
           tag: `alert-${alert.id}`,
         });
         if (u.email && u.emailNotifications !== false) {
-          sendEmail(u.email, `New Service Alert: ${alert.title}`,
-            `<h2>New Service Alert</h2>
-<p>An alert has been issued for a service you are subscribed to.</p>
-<p><strong>${alert.title}</strong></p>
-<blockquote>${alert.description}</blockquote>
-<p>Log in to the app for real-time updates on this alert.</p>`
-          );
+          sendTemplatedEmail(u.email, "customer_service_alert", {
+            alert_title: alert.title,
+            alert_description: alert.description,
+            customer_name: u.fullName,
+          });
         }
       }
       const subIds = subscribedCustomers.map(u => u.id);
@@ -933,12 +938,12 @@ export async function registerRoutes(
           tag: `service-update-${update.id}`,
         });
         if (u.email && u.emailNotifications !== false) {
-          sendEmail(u.email, `Service Update: ${serviceName} - ${title}`,
-            `<h2>Service Update: ${serviceName}</h2>
-<p>There is a new update for a service you are subscribed to.</p>
-<p><strong>${title}</strong></p>
-<blockquote>${description}</blockquote>`
-          );
+          sendTemplatedEmail(u.email, "customer_service_update", {
+            service_name: serviceName,
+            update_title: title,
+            update_description: description,
+            customer_name: u.fullName,
+          });
         }
       }
       const subIds = subscribedCustomers.map(u => u.id);
@@ -979,9 +984,10 @@ export async function registerRoutes(
       }
       const customerEmails = allUsers.filter(u => u.role === "customer" && u.email && u.emailNotifications !== false).map(u => u.email);
       if (customerEmails.length > 0) {
-        sendEmailToMultiple(customerEmails, `News: ${story.title}`,
-          `<h2>${story.title}</h2><p>${story.content}</p>`
-        );
+        sendTemplatedEmail(customerEmails, "customer_news", {
+          story_title: story.title,
+          story_content: story.content,
+        });
       }
       const customerIds = allUsers.filter(u => u.role === "customer").map(u => u.id);
       storage.createContentNotificationBulk(customerIds, "news", story.title, story.id).catch(() => {});
@@ -1064,13 +1070,12 @@ export async function registerRoutes(
       });
 
       if (recipient.email && recipient.emailNotifications !== false && sender) {
-        sendEmail(recipient.email, `Private Message from ${sender.fullName}`,
-          `<h2>New Private Message</h2>
-<p>You have received a message from <strong>${sender.fullName}</strong>.</p>
-<p><strong>Subject:</strong> ${subject}</p>
-<blockquote>${body}</blockquote>
-<p>Log in to the app to view and manage your messages.</p>`
-        );
+        sendTemplatedEmail(recipient.email, "customer_private_message", {
+          sender_name: sender.fullName,
+          message_subject: subject,
+          message_body: body,
+          customer_name: recipient.fullName,
+        });
       }
 
       res.json(message);
@@ -1202,15 +1207,13 @@ export async function registerRoutes(
       const typeLabel = typeLabels[type] || type;
 
       if (user.email && user.emailNotifications !== false) {
-        sendEmail(user.email, `${typeLabel} Received`,
-          `<h2>Your ${typeLabel} Has Been Received</h2>
-<p>Thank you for your submission. We have received and logged the following:</p>
-<p><strong>Type:</strong> ${typeLabel}</p>
-<p><strong>Service:</strong> ${service?.name || "N/A"}</p>
-<p><strong>Title:</strong> ${title}</p>
-${description ? `<blockquote>${description}</blockquote>` : ""}
-<p>Our team will review your submission and take action as needed. You will receive a notification when there is an update.</p>`
-        );
+        sendTemplatedEmail(user.email, "customer_report_received", {
+          type_label: typeLabel,
+          service_name: service?.name || "N/A",
+          report_title: title,
+          report_description_block: description ? `<blockquote>${description}</blockquote>` : "",
+          customer_name: user.fullName,
+        });
       }
 
       const allUsers = await storage.getAllUsers();
@@ -1223,15 +1226,16 @@ ${description ? `<blockquote>${description}</blockquote>` : ""}
           tag: `report-request-${rr.id}`,
         });
         if (admin.email) {
-          sendEmail(admin.email, `New ${typeLabel} from ${user.fullName}`,
-            `<h2>New ${typeLabel}</h2>
-<p>A customer has submitted a new ${typeLabel.toLowerCase()}.</p>
-<p><strong>Customer:</strong> ${user.fullName} (@${user.username})</p>
-<p><strong>Email:</strong> ${user.email}</p>
-<p><strong>Service:</strong> ${service?.name || "N/A"}</p>
-<p><strong>Title:</strong> ${title}</p>
-${description ? `<blockquote>${description}</blockquote>` : ""}`
-          );
+          sendTemplatedEmail(admin.email, "admin_new_report", {
+            type_label: typeLabel,
+            type_label_lower: typeLabel.toLowerCase(),
+            customer_name: user.fullName,
+            customer_username: user.username,
+            customer_email: user.email,
+            service_name: service?.name || "N/A",
+            report_title: title,
+            report_description_block: description ? `<blockquote>${description}</blockquote>` : "",
+          });
         }
       }
       const adminIds = admins.map(a => a.id);
@@ -1280,14 +1284,14 @@ ${description ? `<blockquote>${description}</blockquote>` : ""}`
 
         const customer = await storage.getUser(existing.customerId);
         if (customer?.email && customer.emailNotifications !== false) {
-          sendEmail(customer.email, `${typeLabel} Update: ${existing.title}`,
-            `<h2>${typeLabel} Status Update</h2>
-<p>There has been an update to your submission.</p>
-<p><strong>Title:</strong> ${existing.title}</p>
-<p><strong>New Status:</strong> ${statusLabel}</p>
-${adminNotes ? `<blockquote>${adminNotes}</blockquote>` : (updated.adminNotes ? `<blockquote>${updated.adminNotes}</blockquote>` : "")}
-<p>Thank you for using CowboyMedia!</p>`
-          );
+          const notesBlock = adminNotes ? `<blockquote>${adminNotes}</blockquote>` : (updated.adminNotes ? `<blockquote>${updated.adminNotes}</blockquote>` : "");
+          sendTemplatedEmail(customer.email, "customer_report_update", {
+            type_label: typeLabel,
+            report_title: existing.title,
+            status_label: statusLabel,
+            admin_notes_block: notesBlock,
+            customer_name: customer.fullName,
+          });
         }
       }
 
@@ -1319,6 +1323,46 @@ ${adminNotes ? `<blockquote>${adminNotes}</blockquote>` : (updated.adminNotes ? 
     try {
       await storage.deleteReportRequest(req.params.id);
       res.json({ message: "Deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/email-templates", requireAdmin, async (_req, res) => {
+    try {
+      const templates = await storage.getAllEmailTemplates();
+      res.json(templates);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/email-templates/:id", requireAdmin, async (req, res) => {
+    try {
+      const { subject, body } = req.body;
+      const updateData: any = {};
+      if (subject !== undefined) updateData.subject = subject;
+      if (body !== undefined) updateData.body = body;
+      const updated = await storage.updateEmailTemplate(req.params.id, updateData);
+      if (!updated) return res.status(404).json({ message: "Template not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/email-templates/:id/reset", requireAdmin, async (req, res) => {
+    try {
+      const templates = await storage.getAllEmailTemplates();
+      const template = templates.find(t => t.id === req.params.id);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+      const defaultTpl = getDefaultTemplate(template.templateKey);
+      if (!defaultTpl) return res.status(404).json({ message: "Default template not found" });
+      const updated = await storage.updateEmailTemplate(req.params.id, {
+        subject: defaultTpl.subject,
+        body: defaultTpl.body,
+      });
+      res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

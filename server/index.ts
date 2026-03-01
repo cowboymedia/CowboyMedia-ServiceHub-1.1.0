@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seed } from "./seed";
+import { seedEmailTemplates } from "./email";
 
 const app = express();
 const httpServer = createServer(app);
@@ -74,6 +75,12 @@ app.use((req, res, next) => {
     await seed();
   } catch (e) {
     console.error("Seed error:", e);
+  }
+
+  try {
+    await seedEmailTemplates();
+  } catch (e) {
+    console.error("Email template seed error:", e);
   }
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

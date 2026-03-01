@@ -17,10 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw } from "lucide-react";
 import { format } from "date-fns";
 import { ImageLightbox } from "@/components/image-lightbox";
-import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate } from "@shared/schema";
+import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -1467,6 +1467,230 @@ function ServiceUpdatesTab() {
   );
 }
 
+function EmailTemplatesTab() {
+  const { toast } = useToast();
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+
+  const { data: templates, isLoading } = useQuery<EmailTemplate[]>({
+    queryKey: ["/api/admin/email-templates"],
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, subject, body }: { id: string; subject: string; body: string }) => {
+      await apiRequest("PATCH", `/api/admin/email-templates/${id}`, { subject, body });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/email-templates"] });
+      setEditingTemplate(null);
+      toast({ title: "Template updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update template", variant: "destructive" });
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/admin/email-templates/${id}/reset`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/email-templates"] });
+      setEditingTemplate(null);
+      toast({ title: "Template reset to default" });
+    },
+    onError: () => {
+      toast({ title: "Failed to reset template", variant: "destructive" });
+    },
+  });
+
+  const openEdit = (template: EmailTemplate) => {
+    setEditingTemplate(template);
+    setEditSubject(template.subject);
+    setEditBody(template.body);
+    setShowPreview(false);
+  };
+
+  const insertVariable = (varName: string) => {
+    const textarea = document.getElementById("template-body-editor") as HTMLTextAreaElement | null;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newBody = editBody.substring(0, start) + `{${varName}}` + editBody.substring(end);
+      setEditBody(newBody);
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = start + varName.length + 2;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 0);
+    } else {
+      setEditBody(editBody + `{${varName}}`);
+    }
+  };
+
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold" data-testid="text-email-templates-title">Email Templates</h2>
+      <p className="text-sm text-muted-foreground">Customize the subject and body of outgoing system emails. Use variable placeholders like <code className="bg-muted px-1 py-0.5 rounded text-xs">{"{variable_name}"}</code> which get replaced automatically when emails are sent.</p>
+
+      <div className="space-y-2">
+        {templates?.map((template) => (
+          <Card key={template.id} data-testid={`card-template-${template.templateKey}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm" data-testid={`text-template-name-${template.templateKey}`}>{template.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate">Subject: {template.subject}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => openEdit(template)}
+                    data-testid={`button-edit-template-${template.templateKey}`}
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={!!editingTemplate} onOpenChange={(open) => { if (!open) setEditingTemplate(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-template">
+          <DialogHeader>
+            <DialogTitle data-testid="text-edit-template-title">Edit Template: {editingTemplate?.name}</DialogTitle>
+          </DialogHeader>
+          {editingTemplate && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">{editingTemplate.description}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Available Variables</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {editingTemplate.availableVariables?.map((v) => (
+                    <Badge
+                      key={v}
+                      variant="secondary"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs gap-1"
+                      onClick={() => insertVariable(v)}
+                      data-testid={`badge-var-${v}`}
+                    >
+                      <Copy className="w-3 h-3" />
+                      {`{${v}}`}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Click a variable to insert it at the cursor position in the body field</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Subject</label>
+                <Input
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  className="font-mono text-sm"
+                  data-testid="input-template-subject"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium">Body (HTML)</label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1 h-7 text-xs"
+                    onClick={() => setShowPreview(!showPreview)}
+                    data-testid="button-toggle-preview"
+                  >
+                    {showPreview ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    {showPreview ? "Edit" : "Preview"}
+                  </Button>
+                </div>
+                {showPreview ? (
+                  <div
+                    className="border rounded-md p-4 min-h-[200px] prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: editBody }}
+                    data-testid="div-template-preview"
+                  />
+                ) : (
+                  <Textarea
+                    id="template-body-editor"
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    className="font-mono text-xs min-h-[200px] resize-y"
+                    data-testid="textarea-template-body"
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-between">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-muted-foreground"
+                      data-testid="button-reset-template"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      Reset to Default
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset Template?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will restore the template to the original system default. Any customizations will be lost.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => resetMutation.mutate(editingTemplate.id)}
+                        data-testid="button-confirm-reset"
+                      >
+                        Reset
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditingTemplate(null)} data-testid="button-cancel-edit">
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-1"
+                    disabled={updateMutation.isPending}
+                    onClick={() => updateMutation.mutate({ id: editingTemplate.id, subject: editSubject, body: editBody })}
+                    data-testid="button-save-template"
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin } = useAuth();
 
@@ -1502,6 +1726,7 @@ export default function AdminPortal() {
     { key: "quick-responses", label: "Quick Responses", icon: Zap, color: "text-orange-500", bg: "bg-orange-500/10" },
     { key: "service-updates", label: "Service Updates", icon: RefreshCw, color: "text-teal-500", bg: "bg-teal-500/10" },
     { key: "reports-requests", label: "Reports/Requests", icon: FileText, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+    { key: "email-templates", label: "Email Templates", icon: MailOpen, color: "text-indigo-500", bg: "bg-indigo-500/10" },
   ];
 
   const renderContent = () => {
@@ -1514,6 +1739,7 @@ export default function AdminPortal() {
       case "quick-responses": return <QuickResponsesTab />;
       case "service-updates": return <ServiceUpdatesTab />;
       case "reports-requests": return <ReportsRequestsTab />;
+      case "email-templates": return <EmailTemplatesTab />;
       default: return null;
     }
   };

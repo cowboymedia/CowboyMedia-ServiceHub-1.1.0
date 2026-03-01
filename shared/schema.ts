@@ -150,6 +150,16 @@ export const serviceUpdates = pgTable("service_updates", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateKey: varchar("template_key").notNull().unique(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  availableVariables: text("available_variables").array().default(sql`'{}'::text[]`),
+  description: text("description"),
+});
+
 export const uploadedFiles = pgTable("uploaded_files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   filename: text("filename").notNull().unique(),
@@ -173,6 +183,7 @@ export const insertQuickResponseSchema = createInsertSchema(quickResponses).omit
 export const insertReportRequestSchema = createInsertSchema(reportRequests).omit({ id: true, createdAt: true });
 export const insertReportNotificationSchema = createInsertSchema(reportNotifications).omit({ id: true, createdAt: true, readAt: true });
 export const insertServiceUpdateSchema = createInsertSchema(serviceUpdates).omit({ id: true, createdAt: true });
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -203,6 +214,8 @@ export type InsertReportNotification = z.infer<typeof insertReportNotificationSc
 export type ReportNotification = typeof reportNotifications.$inferSelect;
 export type InsertServiceUpdate = z.infer<typeof insertServiceUpdateSchema>;
 export type ServiceUpdate = typeof serviceUpdates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
 
 // Login schema
 export const loginSchema = z.object({

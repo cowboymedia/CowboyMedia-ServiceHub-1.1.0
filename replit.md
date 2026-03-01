@@ -66,12 +66,12 @@ client/
       profile-page.tsx - User profile, fullName update, billing link, theme, push notifications, service subscriptions
       service-updates-page.tsx - Service updates list with delete capability
       report-request-page.tsx - Report content issues, request movies/series, or report app issues/feature requests (with image/video attachment)
-      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses, service updates, reports/requests
+      admin-portal.tsx - Admin tile cards: users, services, alerts, news, messages, quick responses, service updates, reports/requests, email templates
 server/
   index.ts   - Express server entry
   routes.ts  - All API routes + WebSocket + push notifications + email notifications + auth middleware
   storage.ts - Database storage interface (Drizzle ORM)
-  email.ts   - SendGrid email utility (transactional emails)
+  email.ts   - SendGrid email utility (transactional emails) + renderTemplate() + default template definitions + seeder
   db.ts      - Database connection
   seed.ts    - Seed data for initial setup
 shared/
@@ -119,6 +119,9 @@ shared/
 - `POST /api/push/subscribe` - Subscribe to VAPID push notifications
 - `POST /api/push/unsubscribe` - Unsubscribe from push notifications
 - `GET /api/push/vapid-key` - Get VAPID public key
+- `GET /api/admin/email-templates` - List all email templates (admin only)
+- `PATCH /api/admin/email-templates/:id` - Update template subject/body (admin only)
+- `POST /api/admin/email-templates/:id/reset` - Reset template to system default (admin only)
 - Admin routes under `/api/admin/...`
 
 ## Notification Triggers
