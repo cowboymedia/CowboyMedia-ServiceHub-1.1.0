@@ -22,7 +22,7 @@ import {
   users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, isNull, sql } from "drizzle-orm";
+import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -560,7 +560,7 @@ export class DatabaseStorage implements IStorage {
     const threadIds = participantRows.map(r => r.threadId);
     if (threadIds.length === 0) return [];
     const threads = await db.select().from(adminChatThreads)
-      .where(sql`${adminChatThreads.id} = ANY(${threadIds})`)
+      .where(inArray(adminChatThreads.id, threadIds))
       .orderBy(desc(adminChatThreads.createdAt));
     return threads;
   }
