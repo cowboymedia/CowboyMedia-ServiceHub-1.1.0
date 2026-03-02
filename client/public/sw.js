@@ -63,10 +63,21 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options).then(() => {
-      if (self.navigator && self.navigator.setAppBadge) {
-        self.navigator.setAppBadge().catch(() => {});
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const isAdminChat = data.tag && data.tag.startsWith('admin-chat-');
+      if (isAdminChat) {
+        const viewingAdmin = clients.some((client) =>
+          client.visibilityState === 'visible' && client.url && client.url.includes('/admin')
+        );
+        if (viewingAdmin) {
+          return;
+        }
       }
+      return self.registration.showNotification(data.title, options).then(() => {
+        if (self.navigator && self.navigator.setAppBadge) {
+          self.navigator.setAppBadge().catch(() => {});
+        }
+      });
     })
   );
 });

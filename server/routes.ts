@@ -1789,6 +1789,29 @@ export async function registerRoutes(
         message: { ...msg, senderName: user.fullName },
         participantIds: participants.map(p => p.userId),
       });
+
+      const thread = await storage.getAdminChatThread(req.params.id);
+      const otherParticipants = participants.filter(p => p.userId !== req.session.userId!);
+      let threadLabel = thread?.name || "";
+      if (!threadLabel) {
+        const participantUsers = await Promise.all(
+          participants.map(p => storage.getUser(p.userId))
+        );
+        const otherNames = participantUsers
+          .filter(u => u && u.id !== req.session.userId!)
+          .map(u => u!.fullName);
+        threadLabel = otherNames.join(", ") || "Admin Chat";
+      }
+      const messagePreview = (req.body.message || "").substring(0, 100) || (req.file ? "Sent an attachment" : "New message");
+      for (const p of otherParticipants) {
+        sendPushToUser(p.userId, {
+          title: `Admin Chat - ${threadLabel}`,
+          body: `${user.fullName}: ${messagePreview}`,
+          url: "/admin",
+          tag: `admin-chat-${req.params.id}`,
+        });
+      }
+
       res.json({ ...msg, senderName: user.fullName });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
