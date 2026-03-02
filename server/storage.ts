@@ -14,7 +14,12 @@ import {
   type ReportNotification, type InsertReportNotification,
   type ServiceUpdate, type InsertServiceUpdate,
   type EmailTemplate,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates,
+  type AdminRole, type InsertAdminRole,
+  type TicketCategory, type InsertTicketCategory,
+  type AdminChatThread, type InsertAdminChatThread,
+  type AdminChatParticipant, type InsertAdminChatParticipant,
+  type AdminChatMessage, type InsertAdminChatMessage,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
@@ -110,6 +115,26 @@ export interface IStorage {
   getEmailTemplateByKey(key: string): Promise<EmailTemplate | undefined>;
   updateEmailTemplate(id: string, data: Partial<EmailTemplate>): Promise<EmailTemplate | undefined>;
   upsertEmailTemplate(data: { templateKey: string; name: string; subject: string; body: string; availableVariables: string[]; description: string }): Promise<void>;
+
+  getAllAdminRoles(): Promise<AdminRole[]>;
+  getAdminRole(id: string): Promise<AdminRole | undefined>;
+  createAdminRole(role: InsertAdminRole): Promise<AdminRole>;
+  updateAdminRole(id: string, data: Partial<AdminRole>): Promise<AdminRole | undefined>;
+  deleteAdminRole(id: string): Promise<void>;
+
+  getAllTicketCategories(): Promise<TicketCategory[]>;
+  getTicketCategory(id: string): Promise<TicketCategory | undefined>;
+  createTicketCategory(cat: InsertTicketCategory): Promise<TicketCategory>;
+  updateTicketCategory(id: string, data: Partial<TicketCategory>): Promise<TicketCategory | undefined>;
+  deleteTicketCategory(id: string): Promise<void>;
+
+  createAdminChatThread(thread: InsertAdminChatThread): Promise<AdminChatThread>;
+  getAdminChatThreadsForUser(userId: string): Promise<AdminChatThread[]>;
+  getAdminChatThread(id: string): Promise<AdminChatThread | undefined>;
+  getAdminChatMessages(threadId: string): Promise<AdminChatMessage[]>;
+  createAdminChatMessage(msg: InsertAdminChatMessage): Promise<AdminChatMessage>;
+  addAdminChatParticipant(participant: InsertAdminChatParticipant): Promise<AdminChatParticipant>;
+  getAdminChatParticipants(threadId: string): Promise<AdminChatParticipant[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -474,6 +499,96 @@ export class DatabaseStorage implements IStorage {
     if (!existing) {
       await db.insert(emailTemplates).values(data);
     }
+  }
+
+  async getAllAdminRoles(): Promise<AdminRole[]> {
+    return db.select().from(adminRoles).orderBy(adminRoles.name);
+  }
+
+  async getAdminRole(id: string): Promise<AdminRole | undefined> {
+    const [role] = await db.select().from(adminRoles).where(eq(adminRoles.id, id));
+    return role;
+  }
+
+  async createAdminRole(role: InsertAdminRole): Promise<AdminRole> {
+    const [created] = await db.insert(adminRoles).values(role).returning();
+    return created;
+  }
+
+  async updateAdminRole(id: string, data: Partial<AdminRole>): Promise<AdminRole | undefined> {
+    const [updated] = await db.update(adminRoles).set(data).where(eq(adminRoles.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAdminRole(id: string): Promise<void> {
+    await db.update(users).set({ adminRoleId: null }).where(eq(users.adminRoleId, id));
+    await db.delete(adminRoles).where(eq(adminRoles.id, id));
+  }
+
+  async getAllTicketCategories(): Promise<TicketCategory[]> {
+    return db.select().from(ticketCategories).orderBy(ticketCategories.name);
+  }
+
+  async getTicketCategory(id: string): Promise<TicketCategory | undefined> {
+    const [cat] = await db.select().from(ticketCategories).where(eq(ticketCategories.id, id));
+    return cat;
+  }
+
+  async createTicketCategory(cat: InsertTicketCategory): Promise<TicketCategory> {
+    const [created] = await db.insert(ticketCategories).values(cat).returning();
+    return created;
+  }
+
+  async updateTicketCategory(id: string, data: Partial<TicketCategory>): Promise<TicketCategory | undefined> {
+    const [updated] = await db.update(ticketCategories).set(data).where(eq(ticketCategories.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTicketCategory(id: string): Promise<void> {
+    await db.delete(ticketCategories).where(eq(ticketCategories.id, id));
+  }
+
+  async createAdminChatThread(thread: InsertAdminChatThread): Promise<AdminChatThread> {
+    const [created] = await db.insert(adminChatThreads).values(thread).returning();
+    return created;
+  }
+
+  async getAdminChatThreadsForUser(userId: string): Promise<AdminChatThread[]> {
+    const participantRows = await db.select({ threadId: adminChatParticipants.threadId })
+      .from(adminChatParticipants)
+      .where(eq(adminChatParticipants.userId, userId));
+    const threadIds = participantRows.map(r => r.threadId);
+    if (threadIds.length === 0) return [];
+    const threads = await db.select().from(adminChatThreads)
+      .where(sql`${adminChatThreads.id} = ANY(${threadIds})`)
+      .orderBy(desc(adminChatThreads.createdAt));
+    return threads;
+  }
+
+  async getAdminChatThread(id: string): Promise<AdminChatThread | undefined> {
+    const [thread] = await db.select().from(adminChatThreads).where(eq(adminChatThreads.id, id));
+    return thread;
+  }
+
+  async getAdminChatMessages(threadId: string): Promise<AdminChatMessage[]> {
+    return db.select().from(adminChatMessages)
+      .where(eq(adminChatMessages.threadId, threadId))
+      .orderBy(adminChatMessages.createdAt);
+  }
+
+  async createAdminChatMessage(msg: InsertAdminChatMessage): Promise<AdminChatMessage> {
+    const [created] = await db.insert(adminChatMessages).values(msg).returning();
+    return created;
+  }
+
+  async addAdminChatParticipant(participant: InsertAdminChatParticipant): Promise<AdminChatParticipant> {
+    const [created] = await db.insert(adminChatParticipants).values(participant).returning();
+    return created;
+  }
+
+  async getAdminChatParticipants(threadId: string): Promise<AdminChatParticipant[]> {
+    return db.select().from(adminChatParticipants)
+      .where(eq(adminChatParticipants.threadId, threadId));
   }
 }
 

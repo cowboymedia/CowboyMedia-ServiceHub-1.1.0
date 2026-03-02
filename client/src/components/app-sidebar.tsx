@@ -37,7 +37,7 @@ export function AppSidebar() {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/private-messages/unread-count"],
     refetchInterval: 30000,
-    enabled: !!user && user.role !== "admin",
+    enabled: !!user && user.role !== "admin" && user.role !== "master_admin",
   });
   const unreadCount = unreadData?.count ?? 0;
 
@@ -51,7 +51,7 @@ export function AppSidebar() {
   const { data: reportNotifData } = useQuery<{ count: number }>({
     queryKey: ["/api/report-notifications/unread-count"],
     refetchInterval: 30000,
-    enabled: !!user && user.role !== "admin",
+    enabled: !!user && user.role !== "admin" && user.role !== "master_admin",
   });
   const unreadReportCount = reportNotifData?.count ?? 0;
 

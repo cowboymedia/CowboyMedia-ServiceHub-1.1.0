@@ -87,10 +87,55 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   const user = await storage.getUser(req.session.userId);
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "master_admin")) {
     return res.status(403).json({ message: "Forbidden" });
   }
   next();
+}
+
+async function requireMasterAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = await storage.getUser(req.session.userId);
+  if (!user || user.role !== "master_admin") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+  next();
+}
+
+function requirePermission(viewPerm: string, managePerm?: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "master_admin")) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (user.role === "master_admin") return next();
+    const isWrite = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method);
+    const requiredPerm = isWrite && managePerm ? managePerm : viewPerm;
+    if (!user.adminRoleId) {
+      return res.status(403).json({ message: "No admin role assigned" });
+    }
+    const role = await storage.getAdminRole(user.adminRoleId);
+    if (!role || !role.permissions?.includes(requiredPerm)) {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+    next();
+  };
+}
+
+async function getAdminCategoryAccess(userId: string): Promise<string[]> {
+  const user = await storage.getUser(userId);
+  if (!user) return [];
+  if (user.role === "master_admin") return ["*"];
+  if (user.role !== "admin" || !user.adminRoleId) return [];
+  const categories = await storage.getAllTicketCategories();
+  return categories
+    .filter(c => c.assignedRoleIds?.includes(user.adminRoleId!))
+    .map(c => c.id);
 }
 
 const wsClients = new Set<WebSocket>();
@@ -196,7 +241,7 @@ export async function registerRoutes(
       res.json(safe);
 
       const allUsers = await storage.getAllUsers();
-      const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+      const admins = allUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support");
       for (const admin of admins) {
         sendPushToUser(admin.id, {
           title: "New Customer Signup",
@@ -307,8 +352,14 @@ export async function registerRoutes(
   app.get("/api/tickets", requireAuth, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.role === "admin") {
-      const result = await storage.getAllTickets();
+    if (user.role === "admin" || user.role === "master_admin") {
+      let result = await storage.getAllTickets();
+      if (user.role !== "master_admin") {
+        const accessibleCategoryIds = await getAdminCategoryAccess(user.id);
+        if (!accessibleCategoryIds.includes("*")) {
+          result = result.filter(t => !t.categoryId || accessibleCategoryIds.includes(t.categoryId));
+        }
+      }
       res.json(result);
     } else {
       const result = await storage.getTicketsByCustomer(user.id);
@@ -321,20 +372,27 @@ export async function registerRoutes(
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.role !== "admin" && ticket.customerId !== user.id) {
+    if (user.role !== "admin" && user.role !== "master_admin" && ticket.customerId !== user.id) {
       return res.status(403).json({ message: "Forbidden" });
+    }
+    if (user.role === "admin" && ticket.categoryId) {
+      const accessibleCategoryIds = await getAdminCategoryAccess(user.id);
+      if (!accessibleCategoryIds.includes("*") && !accessibleCategoryIds.includes(ticket.categoryId)) {
+        return res.status(403).json({ message: "No access to this ticket category" });
+      }
     }
     res.json(ticket);
   });
 
   app.post("/api/tickets", requireAuth, upload.single("image"), async (req, res) => {
     try {
-      const { subject, description, serviceId, priority } = req.body;
+      const { subject, description, serviceId, priority, categoryId } = req.body;
       const imageUrl = req.file ? await saveUploadedFile(req.file) : undefined;
       const ticket = await storage.createTicket({
         subject,
         description,
         serviceId: serviceId || null,
+        categoryId: categoryId || null,
         priority: priority || "medium",
         customerId: req.session.userId!,
         status: "open",
@@ -345,7 +403,13 @@ export async function registerRoutes(
       const customer = await storage.getUser(req.session.userId!);
       const service = ticket.serviceId ? await storage.getService(ticket.serviceId) : null;
       const allUsers = await storage.getAllUsers();
-      const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+      let admins = allUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support");
+      if (ticket.categoryId) {
+        const category = await storage.getTicketCategory(ticket.categoryId);
+        if (category && category.assignedRoleIds && category.assignedRoleIds.length > 0) {
+          admins = admins.filter(a => a.role === "master_admin" || (a.adminRoleId && category.assignedRoleIds!.includes(a.adminRoleId)));
+        }
+      }
       for (const admin of admins) {
         sendPushToUser(admin.id, {
           title: "New Support Ticket",
@@ -428,8 +492,14 @@ export async function registerRoutes(
       if (!ticket) return res.status(404).json({ message: "Ticket not found" });
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
-      if (user.role !== "admin" && ticket.customerId !== user.id) {
+      if (user.role !== "admin" && user.role !== "master_admin" && ticket.customerId !== user.id) {
         return res.status(403).json({ message: "Forbidden" });
+      }
+      if ((user.role === "admin") && ticket.categoryId) {
+        const accessibleIds = await getAdminCategoryAccess(user.id);
+        if (!accessibleIds.includes("*") && !accessibleIds.includes(ticket.categoryId)) {
+          return res.status(403).json({ message: "You don't have access to this ticket's category" });
+        }
       }
       const { status } = req.body;
       const data: any = { status };
@@ -466,7 +536,13 @@ export async function registerRoutes(
 
         const customer = await storage.getUser(ticket.customerId);
         const allUsers = await storage.getAllUsers();
-        const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+        let admins = allUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support");
+        if (ticket.categoryId) {
+          const category = await storage.getTicketCategory(ticket.categoryId);
+          if (category && category.assignedRoleIds && category.assignedRoleIds.length > 0) {
+            admins = admins.filter(a => a.role === "master_admin" || (a.adminRoleId && category.assignedRoleIds!.includes(a.adminRoleId)));
+          }
+        }
         for (const admin of admins) {
           sendPushToUser(admin.id, {
             title: "Ticket Closed",
@@ -497,7 +573,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tickets/:id/claim", requireAdmin, async (req, res) => {
+  app.post("/api/tickets/:id/claim", requirePermission("support_tickets"), async (req, res) => {
     try {
       const ticket = await storage.getTicket(req.params.id);
       if (!ticket) return res.status(404).json({ message: "Ticket not found" });
@@ -507,6 +583,12 @@ export async function registerRoutes(
       }
       const admin = await storage.getUser(req.session.userId!);
       if (!admin) return res.status(401).json({ message: "Unauthorized" });
+      if (admin.role === "admin" && ticket.categoryId) {
+        const accessibleCategoryIds = await getAdminCategoryAccess(admin.id);
+        if (!accessibleCategoryIds.includes("*") && !accessibleCategoryIds.includes(ticket.categoryId)) {
+          return res.status(403).json({ message: "No access to this ticket category" });
+        }
+      }
 
       const updated = await storage.updateTicket(req.params.id, { claimedBy: admin.id });
       if (!updated) return res.status(404).json({ message: "Ticket not found" });
@@ -569,8 +651,14 @@ export async function registerRoutes(
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.role !== "admin" && ticket.customerId !== user.id) {
+    if (user.role !== "admin" && user.role !== "master_admin" && ticket.customerId !== user.id) {
       return res.status(403).json({ message: "Forbidden" });
+    }
+    if (user.role === "admin" && ticket.categoryId) {
+      const accessibleCategoryIds = await getAdminCategoryAccess(user.id);
+      if (!accessibleCategoryIds.includes("*") && !accessibleCategoryIds.includes(ticket.categoryId)) {
+        return res.status(403).json({ message: "No access to this ticket category" });
+      }
     }
     const messages = await storage.getTicketMessages(req.params.id);
     const senderIds = [...new Set(messages.map(m => m.senderId))];
@@ -590,7 +678,7 @@ export async function registerRoutes(
   app.get("/api/tickets/:id/customer", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      if (!user || user.role !== "admin") {
+      if (!user || (user.role !== "admin" && user.role !== "master_admin")) {
         return res.status(403).json({ message: "Forbidden" });
       }
       const ticket = await storage.getTicket(req.params.id);
@@ -629,14 +717,46 @@ export async function registerRoutes(
       if (!ticket) return res.status(404).json({ message: "Ticket not found" });
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
-      if (user.role !== "admin" && ticket.customerId !== user.id) {
+      const isAdmin = user.role === "admin" || user.role === "master_admin";
+      if (!isAdmin && ticket.customerId !== user.id) {
         return res.status(403).json({ message: "Forbidden" });
+      }
+      if (user.role === "admin" && ticket.categoryId) {
+        const accessibleCategoryIds = await getAdminCategoryAccess(user.id);
+        if (!accessibleCategoryIds.includes("*") && !accessibleCategoryIds.includes(ticket.categoryId)) {
+          return res.status(403).json({ message: "No access to this ticket category" });
+        }
       }
       if (user.role === "admin" && !ticket.claimedBy) {
         return res.status(400).json({ message: "You must claim this ticket before responding" });
       }
       if (user.role === "admin" && ticket.claimedBy !== user.id) {
         return res.status(403).json({ message: "Only the admin who claimed this ticket can respond" });
+      }
+      if (user.role === "master_admin" && ticket.claimedBy && ticket.claimedBy !== user.id) {
+        const existingMessages = await storage.getTicketMessages(req.params.id);
+        const joinedMessage = `${user.fullName} has joined the conversation`;
+        const alreadyJoined = existingMessages.some(m => m.message === joinedMessage);
+        if (!alreadyJoined) {
+          let supportUser = await storage.getUserByUsername("cowboymedia-support");
+          if (!supportUser) {
+            supportUser = await storage.createUser({
+              username: "cowboymedia-support",
+              password: "nologin-system-account",
+              email: "noreply@cowboymedia.net",
+              fullName: "CowboyMedia Support",
+              role: "admin",
+              theme: "light",
+            });
+          }
+          const joinMsg = await storage.createTicketMessage({
+            ticketId: ticket.id,
+            senderId: supportUser.id,
+            message: joinedMessage,
+            imageUrl: null,
+          });
+          broadcast({ type: "ticket_message", ticketId: ticket.id, message: joinMsg });
+        }
       }
       const imageUrl = req.file ? await saveUploadedFile(req.file) : undefined;
       const message = await storage.createTicketMessage({
@@ -646,7 +766,7 @@ export async function registerRoutes(
         imageUrl: imageUrl || null,
       });
       broadcast({ type: "ticket_message", ticketId: req.params.id, message });
-      if (user.role === "admin") {
+      if (isAdmin) {
         sendPushToUser(ticket.customerId, {
           title: "New Ticket Reply",
           body: `Reply on: ${ticket.subject}`,
@@ -669,7 +789,13 @@ export async function registerRoutes(
         }
       } else {
         const allAdminUsers = await storage.getAllUsers();
-        const admins = allAdminUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+        let admins = allAdminUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support");
+        if (ticket.categoryId) {
+          const category = await storage.getTicketCategory(ticket.categoryId);
+          if (category && category.assignedRoleIds && category.assignedRoleIds.length > 0) {
+            admins = admins.filter(a => a.role === "master_admin" || (a.adminRoleId && category.assignedRoleIds!.includes(a.adminRoleId)));
+          }
+        }
         for (const admin of admins) {
           sendPushToUser(admin.id, {
             title: "New Ticket Message",
@@ -700,13 +826,13 @@ export async function registerRoutes(
   });
 
   // Admin routes
-  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+  app.get("/api/admin/users", requirePermission("users.view", "users.manage"), async (_req, res) => {
     const result = await storage.getAllUsers();
     const safe = result.map(({ password: _, ...u }) => u);
     res.json(safe);
   });
 
-  app.get("/api/admin/users/push-status", requireAdmin, async (_req, res) => {
+  app.get("/api/admin/users/push-status", requirePermission("users.view", "users.manage"), async (_req, res) => {
     try {
       const allSubs = await storage.getAllPushSubscriptions();
       const userIdsWithPush = new Set(allSubs.map(s => s.userId));
@@ -720,7 +846,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/users", requireAdmin, async (req, res) => {
+  app.post("/api/admin/users", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
       const { username, password, email, fullName, role } = req.body;
       const existing = await storage.getUserByUsername(username);
@@ -734,7 +860,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
       const updated = await storage.updateUser(req.params.id, req.body);
       if (!updated) return res.status(404).json({ message: "User not found" });
@@ -745,7 +871,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/users/:id/password", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id/password", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
       const { password } = req.body;
       if (!password || password.length < 6) {
@@ -760,7 +886,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/users/:id", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
       await storage.deleteUser(req.params.id);
       res.json({ message: "User deleted" });
@@ -769,7 +895,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/services", requireAdmin, async (req, res) => {
+  app.post("/api/admin/services", requirePermission("services.view", "services.manage"), async (req, res) => {
     try {
       const service = await storage.createService(req.body);
       res.json(service);
@@ -778,7 +904,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/services/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/services/:id", requirePermission("services.view", "services.manage"), async (req, res) => {
     try {
       const existing = await storage.getService(req.params.id);
       if (!existing) return res.status(404).json({ message: "Service not found" });
@@ -811,7 +937,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/services/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/services/:id", requirePermission("services.view", "services.manage"), async (req, res) => {
     try {
       await storage.deleteService(req.params.id);
       res.json({ message: "Service deleted" });
@@ -820,7 +946,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/alerts", requireAdmin, async (req, res) => {
+  app.post("/api/admin/alerts", requirePermission("alerts.view", "alerts.manage"), async (req, res) => {
     try {
       const { sendPush, sendEmail, ...alertData } = req.body;
       const alert = await storage.createAlert(alertData);
@@ -852,7 +978,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/alerts/:id/updates", requireAdmin, async (req, res) => {
+  app.post("/api/admin/alerts/:id/updates", requirePermission("alerts.view", "alerts.manage"), async (req, res) => {
     try {
       const { sendPush, sendEmail, ...updateData } = req.body;
       const update = await storage.createAlertUpdate({
@@ -896,7 +1022,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/alerts/:id/resolve", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/alerts/:id/resolve", requirePermission("alerts.view", "alerts.manage"), async (req, res) => {
     try {
       const updated = await storage.updateAlert(req.params.id, { status: "resolved", resolvedAt: new Date() });
       if (!updated) return res.status(404).json({ message: "Alert not found" });
@@ -912,7 +1038,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/alerts/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/alerts/:id", requirePermission("alerts.view", "alerts.manage"), async (req, res) => {
     try {
       await storage.deleteAlert(req.params.id);
       res.json({ message: "Alert deleted" });
@@ -925,7 +1051,7 @@ export async function registerRoutes(
     try {
       const updates = await storage.getAllServiceUpdates();
       const user = await storage.getUser(req.session.userId!);
-      if (user && user.role !== "admin") {
+      if (user && user.role !== "admin" && user.role !== "master_admin") {
         const hiddenIds = await storage.getHiddenServiceUpdateIds(user.id);
         const filtered = updates.filter(u => !hiddenIds.includes(u.id));
         return res.json(filtered);
@@ -936,7 +1062,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/service-updates", requireAdmin, async (req, res) => {
+  app.post("/api/admin/service-updates", requirePermission("service_updates.view", "service_updates.manage"), async (req, res) => {
     try {
       const parsed = insertServiceUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -978,7 +1104,7 @@ export async function registerRoutes(
   app.delete("/api/service-updates/:id", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
-      if (user && user.role === "admin") {
+      if (user && (user.role === "admin" || user.role === "master_admin")) {
         if (req.body?.hideOnly) {
           await storage.hideServiceUpdate(req.session.userId!, req.params.id);
           return res.json({ message: "Service update hidden for you" });
@@ -993,7 +1119,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/news", requireAdmin, upload.single("image"), async (req, res) => {
+  app.post("/api/admin/news", requirePermission("news.view", "news.manage"), upload.single("image"), async (req, res) => {
     try {
       const imageUrl = req.file ? await saveUploadedFile(req.file) : undefined;
       const story = await storage.createNewsStory({
@@ -1027,7 +1153,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/news/:id", requireAdmin, upload.single("image"), async (req, res) => {
+  app.patch("/api/admin/news/:id", requirePermission("news.view", "news.manage"), upload.single("image"), async (req, res) => {
     try {
       const existing = await storage.getNewsStory(req.params.id);
       if (!existing) return res.status(404).json({ message: "News story not found" });
@@ -1048,7 +1174,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/news/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/news/:id", requirePermission("news.view", "news.manage"), async (req, res) => {
     try {
       await storage.deleteNewsStory(req.params.id);
       res.json({ message: "News story deleted" });
@@ -1058,7 +1184,7 @@ export async function registerRoutes(
   });
 
   // Delete ticket route (admin only)
-  app.delete("/api/admin/tickets/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/tickets/:id", requirePermission("support_tickets"), async (req, res) => {
     try {
       const ticket = await storage.getTicket(req.params.id);
       if (!ticket) return res.status(404).json({ message: "Ticket not found" });
@@ -1073,7 +1199,7 @@ export async function registerRoutes(
   });
 
   // Private messages routes
-  app.post("/api/admin/private-messages", requireAdmin, async (req, res) => {
+  app.post("/api/admin/private-messages", requirePermission("messages.view", "messages.manage"), async (req, res) => {
     try {
       const { recipientId, subject, body } = req.body;
       if (!recipientId || !subject || !body) {
@@ -1114,7 +1240,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/private-messages/sent", requireAdmin, async (req, res) => {
+  app.get("/api/admin/private-messages/sent", requirePermission("messages.view", "messages.manage"), async (req, res) => {
     try {
       const messages = await storage.getPrivateMessagesBySender(req.session.userId!);
       res.json(messages);
@@ -1123,7 +1249,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/private-messages/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/private-messages/:id", requirePermission("messages.view", "messages.manage"), async (req, res) => {
     try {
       const sentMessages = await storage.getPrivateMessagesBySender(req.session.userId!);
       const msg = sentMessages.find(m => m.id === req.params.id);
@@ -1135,7 +1261,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/quick-responses", requireAdmin, async (req, res) => {
+  app.get("/api/admin/quick-responses", requirePermission("quick_responses.view", "quick_responses.manage"), async (req, res) => {
     try {
       const responses = await storage.getAllQuickResponses();
       res.json(responses);
@@ -1144,7 +1270,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/quick-responses", requireAdmin, async (req, res) => {
+  app.post("/api/admin/quick-responses", requirePermission("quick_responses.view", "quick_responses.manage"), async (req, res) => {
     try {
       const { title, message } = req.body;
       if (!title || !message) return res.status(400).json({ message: "Title and message are required" });
@@ -1155,7 +1281,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/quick-responses/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/quick-responses/:id", requirePermission("quick_responses.view", "quick_responses.manage"), async (req, res) => {
     try {
       const { title, message } = req.body;
       const updated = await storage.updateQuickResponse(req.params.id, { title, message });
@@ -1166,7 +1292,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/quick-responses/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/quick-responses/:id", requirePermission("quick_responses.view", "quick_responses.manage"), async (req, res) => {
     try {
       await storage.deleteQuickResponse(req.params.id);
       res.json({ message: "Quick response deleted" });
@@ -1188,7 +1314,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
-      if (user.role === "admin") {
+      if (user.role === "admin" || user.role === "master_admin") {
         const all = await storage.getAllReportRequests();
         const enriched = await Promise.all(all.map(async (rr) => {
           const customer = await storage.getUser(rr.customerId);
@@ -1247,7 +1373,7 @@ export async function registerRoutes(
       }
 
       const allUsers = await storage.getAllUsers();
-      const admins = allUsers.filter(u => u.role === "admin" && u.username !== "cowboymedia-support");
+      const admins = allUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support");
       for (const admin of admins) {
         sendPushToUser(admin.id, {
           title: `New ${typeLabel}`,
@@ -1277,7 +1403,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/report-requests/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/report-requests/:id", requirePermission("reports.view", "reports.manage"), async (req, res) => {
     try {
       const { status, adminNotes } = req.body;
       const existing = await storage.getAllReportRequests().then(all => all.find(r => r.id === req.params.id));
@@ -1349,7 +1475,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/admin/report-requests/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/admin/report-requests/:id", requirePermission("reports.view", "reports.manage"), async (req, res) => {
     try {
       await storage.deleteReportRequest(req.params.id);
       res.json({ message: "Deleted" });
@@ -1358,7 +1484,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/email-templates", requireAdmin, async (_req, res) => {
+  app.get("/api/admin/email-templates", requirePermission("email_templates.view", "email_templates.manage"), async (_req, res) => {
     try {
       const templates = await storage.getAllEmailTemplates();
       res.json(templates);
@@ -1367,7 +1493,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/admin/email-templates/:id", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/email-templates/:id", requirePermission("email_templates.view", "email_templates.manage"), async (req, res) => {
     try {
       const { subject, body, enabled } = req.body;
       const updateData: any = {};
@@ -1382,7 +1508,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/email-templates/:id/reset", requireAdmin, async (req, res) => {
+  app.post("/api/admin/email-templates/:id/reset", requirePermission("email_templates.view", "email_templates.manage"), async (req, res) => {
     try {
       const templates = await storage.getAllEmailTemplates();
       const template = templates.find(t => t.id === req.params.id);
@@ -1394,6 +1520,255 @@ export async function registerRoutes(
         body: defaultTpl.body,
       });
       res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/my-permissions", requireAdmin, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.role === "master_admin") {
+        return res.json({ permissions: ["*"] });
+      }
+      if (!user.adminRoleId) {
+        return res.json({ permissions: [] });
+      }
+      const role = await storage.getAdminRole(user.adminRoleId);
+      return res.json({ permissions: role?.permissions || [] });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/roles", requireAdmin, async (_req, res) => {
+    try {
+      const roles = await storage.getAllAdminRoles();
+      res.json(roles);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/roles", requireMasterAdmin, async (req, res) => {
+    try {
+      const { name, permissions } = req.body;
+      const role = await storage.createAdminRole({ name, permissions: permissions || [] });
+      res.json(role);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/roles/:id", requireMasterAdmin, async (req, res) => {
+    try {
+      const { name, permissions } = req.body;
+      const updated = await storage.updateAdminRole(req.params.id, { name, permissions });
+      if (!updated) return res.status(404).json({ message: "Role not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/admin/roles/:id", requireMasterAdmin, async (req, res) => {
+    try {
+      await storage.deleteAdminRole(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/ticket-categories", requireAuth, async (_req, res) => {
+    try {
+      const categories = await storage.getAllTicketCategories();
+      res.json(categories);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/ticket-categories", requireMasterAdmin, async (req, res) => {
+    try {
+      const { name, description, assignedRoleIds } = req.body;
+      const cat = await storage.createTicketCategory({ name, description, assignedRoleIds: assignedRoleIds || [] });
+      res.json(cat);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/ticket-categories/:id", requireMasterAdmin, async (req, res) => {
+    try {
+      const { name, description, assignedRoleIds } = req.body;
+      const updated = await storage.updateTicketCategory(req.params.id, { name, description, assignedRoleIds });
+      if (!updated) return res.status(404).json({ message: "Category not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/admin/ticket-categories/:id", requireMasterAdmin, async (req, res) => {
+    try {
+      await storage.deleteTicketCategory(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/broadcast-push", requireMasterAdmin, async (req, res) => {
+    try {
+      const { title, message, userIds } = req.body;
+      if (!title || !message || !userIds?.length) {
+        return res.status(400).json({ message: "title, message, and userIds are required" });
+      }
+      let sent = 0;
+      for (const userId of userIds) {
+        const subs = await storage.getPushSubscriptionsByUser(userId);
+        for (const sub of subs) {
+          try {
+            await webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              JSON.stringify({ title, body: message })
+            );
+            sent++;
+          } catch (err: any) {
+            if (err.statusCode === 410) {
+              await storage.deletePushSubscription(sub.endpoint);
+            }
+          }
+        }
+      }
+      res.json({ success: true, sent });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/role", requireMasterAdmin, async (req, res) => {
+    try {
+      const { role, adminRoleId } = req.body;
+      const updateData: any = {};
+      if (role !== undefined) updateData.role = role;
+      if (adminRoleId !== undefined) updateData.adminRoleId = adminRoleId;
+      const updated = await storage.updateUser(req.params.id, updateData);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/chat/threads", requirePermission("admin_chat"), async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      let threads;
+      if (user.role === "master_admin") {
+        const { db: dbInst } = await import("./db");
+        const { adminChatThreads: threadsTable } = await import("@shared/schema");
+        const { desc } = await import("drizzle-orm");
+        threads = await dbInst.select().from(threadsTable).orderBy(desc(threadsTable.createdAt));
+      } else {
+        threads = await storage.getAdminChatThreadsForUser(req.session.userId!);
+      }
+      const enriched = await Promise.all(threads.map(async (thread) => {
+        const participants = await storage.getAdminChatParticipants(thread.id);
+        const participantUsers = await Promise.all(
+          participants.map(async (p) => {
+            const u = await storage.getUser(p.userId);
+            return u ? { id: u.id, fullName: u.fullName, username: u.username } : null;
+          })
+        );
+        const messages = await storage.getAdminChatMessages(thread.id);
+        const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+        return {
+          ...thread,
+          participants: participantUsers.filter(Boolean),
+          lastMessage,
+        };
+      }));
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/chat/threads", requirePermission("admin_chat"), async (req, res) => {
+    try {
+      const { name, participantIds } = req.body;
+      if (!participantIds?.length) {
+        return res.status(400).json({ message: "participantIds required" });
+      }
+      const thread = await storage.createAdminChatThread({ name: name || null, createdBy: req.session.userId! });
+      await storage.addAdminChatParticipant({ threadId: thread.id, userId: req.session.userId! });
+      for (const pId of participantIds) {
+        if (pId !== req.session.userId) {
+          await storage.addAdminChatParticipant({ threadId: thread.id, userId: pId });
+        }
+      }
+      res.json(thread);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/chat/threads/:id/messages", requirePermission("admin_chat"), async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      if (user.role !== "master_admin") {
+        const participants = await storage.getAdminChatParticipants(req.params.id);
+        if (!participants.some(p => p.userId === user.id)) {
+          return res.status(403).json({ message: "Not a participant" });
+        }
+      }
+      const messages = await storage.getAdminChatMessages(req.params.id);
+      const enriched = await Promise.all(messages.map(async (msg) => {
+        const sender = await storage.getUser(msg.senderId);
+        return { ...msg, senderName: sender?.fullName || "Unknown" };
+      }));
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/chat/threads/:id/messages", requirePermission("admin_chat"), upload.single("file"), async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+      if (user.role !== "master_admin") {
+        const participants = await storage.getAdminChatParticipants(req.params.id);
+        if (!participants.some(p => p.userId === user.id)) {
+          return res.status(403).json({ message: "Not a participant" });
+        }
+      }
+      let fileUrl = null;
+      let fileType = null;
+      if (req.file) {
+        fileUrl = await saveUploadedFile(req.file);
+        fileType = req.file.mimetype;
+      }
+      const msg = await storage.createAdminChatMessage({
+        threadId: req.params.id,
+        senderId: req.session.userId!,
+        message: req.body.message || "",
+        fileUrl,
+        fileType,
+      });
+      const participants = await storage.getAdminChatParticipants(req.params.id);
+      broadcast({
+        type: "admin_chat_message",
+        threadId: req.params.id,
+        message: { ...msg, senderName: user.fullName },
+        participantIds: participants.map(p => p.userId),
+      });
+      res.json({ ...msg, senderName: user.fullName });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

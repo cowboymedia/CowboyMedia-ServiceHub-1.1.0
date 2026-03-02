@@ -16,7 +16,7 @@ import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield, Zap }
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Ticket, TicketMessage, Service, User, QuickResponse } from "@shared/schema";
+import type { Ticket, TicketMessage, Service, User, QuickResponse, TicketCategory } from "@shared/schema";
 
 type EnrichedTicketMessage = TicketMessage & { senderName?: string; senderRole?: string };
 
@@ -129,7 +129,9 @@ export default function TicketDetail() {
     },
   });
 
+  const { data: categories } = useQuery<TicketCategory[]>({ queryKey: ["/api/ticket-categories"] });
   const serviceName = services?.find((s) => s.id === ticket?.serviceId)?.name;
+  const categoryName = categories?.find((c) => c.id === ticket?.categoryId)?.name;
 
   if (isLoading) {
     return (
@@ -167,6 +169,7 @@ export default function TicketDetail() {
               <Badge variant={ticket.status === "open" ? "default" : "secondary"} className="text-xs capitalize">{ticket.status}</Badge>
               <Badge variant={ticket.priority === "high" ? "destructive" : "secondary"} className="text-xs capitalize">{ticket.priority}</Badge>
               {serviceName && <Badge variant="secondary" className="text-xs">{serviceName}</Badge>}
+              {categoryName && <Badge variant="outline" className="text-xs">{categoryName}</Badge>}
             </div>
           </div>
         </div>

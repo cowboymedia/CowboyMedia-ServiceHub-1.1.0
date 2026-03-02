@@ -87,7 +87,7 @@ function SetupReminderDialog() {
   const [dismissing, setDismissing] = useState(false);
 
   useEffect(() => {
-    if (!user || user.role === "admin") return;
+    if (!user || user.role === "admin" || user.role === "master_admin") return;
     if (user.setupReminderDismissed) return;
     if (sessionStorage.getItem("setupReminderShown") === "true") return;
     if (sessionStorage.getItem("showWelcome") === "true") return;
@@ -183,7 +183,7 @@ function PrivateMessagePopup() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!user || user.role === "admin") return;
+    if (!user || user.role === "admin" || user.role === "master_admin") return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);

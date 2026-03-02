@@ -11,6 +11,9 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
+  isMasterAdmin: boolean;
+  permissions: string[];
+  hasPermission: (key: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +23,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
+
+  const isAdmin = user?.role === "admin" || user?.role === "master_admin";
+  const isMasterAdmin = user?.role === "master_admin";
+
+  const { data: roleData } = useQuery<{ permissions: string[] }>({
+    queryKey: ["/api/admin/my-permissions"],
+    enabled: isAdmin && !isMasterAdmin,
+  });
+
+  const permissions = isMasterAdmin ? ["*"] : (roleData?.permissions || []);
+
+  const hasPermission = (key: string): boolean => {
+    if (isMasterAdmin) return true;
+    return permissions.includes(key);
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginData) => {
@@ -68,7 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
-        isAdmin: user?.role === "admin",
+        isAdmin,
+        isMasterAdmin,
+        permissions,
+        hasPermission,
       }}
     >
       {children}

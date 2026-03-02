@@ -27,16 +27,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Ticket, Clock, ChevronRight, MessageSquare, Trash2 } from "lucide-react";
+import { Plus, Ticket, Clock, ChevronRight, MessageSquare, Trash2, Tag } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import type { Ticket as TicketType, Service } from "@shared/schema";
+import type { Ticket as TicketType, Service, TicketCategory } from "@shared/schema";
 
 const createTicketSchema = z.object({
   subject: z.string().min(1, "Subject is required"),
   description: z.string().min(1, "Description is required"),
   serviceId: z.string().optional(),
+  categoryId: z.string().optional(),
   priority: z.string().default("medium"),
 });
 
@@ -72,9 +73,13 @@ export default function TicketsPage() {
     queryKey: ["/api/services"],
   });
 
+  const { data: categories } = useQuery<TicketCategory[]>({
+    queryKey: ["/api/ticket-categories"],
+  });
+
   const form = useForm({
     resolver: zodResolver(createTicketSchema),
-    defaultValues: { subject: "", description: "", serviceId: "", priority: "medium" },
+    defaultValues: { subject: "", description: "", serviceId: "", categoryId: "", priority: "medium" },
   });
 
   const deleteMutation = useMutation({
@@ -96,6 +101,7 @@ export default function TicketsPage() {
       formData.append("subject", data.subject);
       formData.append("description", data.description);
       if (data.serviceId) formData.append("serviceId", data.serviceId);
+      if (data.categoryId) formData.append("categoryId", data.categoryId);
       formData.append("priority", data.priority);
       if (imageFile) formData.append("image", imageFile);
 
@@ -129,6 +135,7 @@ export default function TicketsPage() {
   const openTickets = tickets?.filter((t) => t.status === "open") || [];
   const closedTickets = tickets?.filter((t) => t.status === "closed") || [];
   const serviceMap = new Map(services?.map((s) => [s.id, s.name]) || []);
+  const categoryMap = new Map(categories?.map((c) => [c.id, c.name]) || []);
 
   return (
     <div className="space-y-6">
@@ -187,6 +194,30 @@ export default function TicketsPage() {
                       </FormItem>
                     )}
                   />
+                  {categories && categories.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="categoryId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-ticket-category">
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {categories.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={form.control}
                     name="priority"
@@ -272,6 +303,9 @@ export default function TicketsPage() {
                           <PriorityBadge priority={ticket.priority} />
                           {ticket.serviceId && serviceMap.get(ticket.serviceId) && (
                             <Badge variant="secondary" className="text-xs">{serviceMap.get(ticket.serviceId)}</Badge>
+                          )}
+                          {ticket.categoryId && categoryMap.get(ticket.categoryId) && (
+                            <Badge variant="outline" className="text-xs"><Tag className="w-3 h-3 mr-1" />{categoryMap.get(ticket.categoryId)}</Badge>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">

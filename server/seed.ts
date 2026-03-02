@@ -16,9 +16,9 @@ export async function seed() {
   const existingUsers = await storage.getAllUsers();
   if (existingUsers.length > 0) {
     const adminUser = existingUsers.find(u => u.username === "admin");
-    if (adminUser && adminUser.role !== "admin") {
-      await storage.updateUser(adminUser.id, { role: "admin" });
-      console.log("Restored admin role for user 'admin'");
+    if (adminUser && adminUser.role !== "master_admin") {
+      await storage.updateUser(adminUser.id, { role: "master_admin" });
+      console.log("Upgraded admin to master_admin role");
     }
     return;
   }
@@ -33,7 +33,7 @@ export async function seed() {
     password: adminPassword,
     email: "admin@servicehub.com",
     fullName: "System Admin",
-    role: "admin",
+    role: "master_admin",
     theme: "light",
   });
 

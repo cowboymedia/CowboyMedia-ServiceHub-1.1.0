@@ -20,7 +20,7 @@ export default function AuthPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (user) {
-    navigate(user.role === "admin" ? "/admin" : "/");
+    navigate((user.role === "admin" || user.role === "master_admin") ? "/admin" : "/");
     return null;
   }
 

@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   fullName: text("full_name").notNull(),
   role: text("role").notNull().default("customer"),
+  adminRoleId: varchar("admin_role_id"),
   subscribedServices: text("subscribed_services").array().default(sql`'{}'::text[]`),
   theme: text("theme").notNull().default("light"),
   emailNotifications: boolean("email_notifications").notNull().default(true),
@@ -59,6 +60,7 @@ export const tickets = pgTable("tickets", {
   subject: text("subject").notNull(),
   description: text("description").notNull(),
   serviceId: varchar("service_id"),
+  categoryId: varchar("category_id"),
   status: text("status").notNull().default("open"),
   priority: text("priority").notNull().default("medium"),
   customerId: varchar("customer_id").notNull(),
@@ -179,6 +181,45 @@ export const uploadedFiles = pgTable("uploaded_files", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const adminRoles = pgTable("admin_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  permissions: text("permissions").array().default(sql`'{}'::text[]`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ticketCategories = pgTable("ticket_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  assignedRoleIds: text("assigned_role_ids").array().default(sql`'{}'::text[]`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const adminChatThreads = pgTable("admin_chat_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name"),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const adminChatParticipants = pgTable("admin_chat_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const adminChatMessages = pgTable("admin_chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id").notNull(),
+  senderId: varchar("sender_id").notNull(),
+  message: text("message").notNull(),
+  fileUrl: text("file_url"),
+  fileType: text("file_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true });
@@ -195,6 +236,11 @@ export const insertReportRequestSchema = createInsertSchema(reportRequests).omit
 export const insertReportNotificationSchema = createInsertSchema(reportNotifications).omit({ id: true, createdAt: true, readAt: true });
 export const insertServiceUpdateSchema = createInsertSchema(serviceUpdates).omit({ id: true, createdAt: true });
 export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true });
+export const insertAdminRoleSchema = createInsertSchema(adminRoles).omit({ id: true, createdAt: true });
+export const insertTicketCategorySchema = createInsertSchema(ticketCategories).omit({ id: true, createdAt: true });
+export const insertAdminChatThreadSchema = createInsertSchema(adminChatThreads).omit({ id: true, createdAt: true });
+export const insertAdminChatParticipantSchema = createInsertSchema(adminChatParticipants).omit({ id: true, joinedAt: true });
+export const insertAdminChatMessageSchema = createInsertSchema(adminChatMessages).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -227,6 +273,16 @@ export type InsertServiceUpdate = z.infer<typeof insertServiceUpdateSchema>;
 export type ServiceUpdate = typeof serviceUpdates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertAdminRole = z.infer<typeof insertAdminRoleSchema>;
+export type AdminRole = typeof adminRoles.$inferSelect;
+export type InsertTicketCategory = z.infer<typeof insertTicketCategorySchema>;
+export type TicketCategory = typeof ticketCategories.$inferSelect;
+export type InsertAdminChatThread = z.infer<typeof insertAdminChatThreadSchema>;
+export type AdminChatThread = typeof adminChatThreads.$inferSelect;
+export type InsertAdminChatParticipant = z.infer<typeof insertAdminChatParticipantSchema>;
+export type AdminChatParticipant = typeof adminChatParticipants.$inferSelect;
+export type InsertAdminChatMessage = z.infer<typeof insertAdminChatMessageSchema>;
+export type AdminChatMessage = typeof adminChatMessages.$inferSelect;
 
 // Login schema
 export const loginSchema = z.object({

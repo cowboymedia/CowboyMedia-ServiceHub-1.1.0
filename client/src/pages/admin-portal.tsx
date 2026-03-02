@@ -18,10 +18,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { ImageLightbox } from "@/components/image-lightbox";
-import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate } from "@shared/schema";
+import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -60,7 +64,7 @@ const createUserSchema = z.object({
   role: z.string().default("customer"),
 });
 
-function UsersTab() {
+function UsersTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -197,9 +201,9 @@ function UsersTab() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold">Users ({users?.length || 0})</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-add-user"><Plus className="w-4 h-4 mr-1" /> Add User</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader><DialogTitle>Create User</DialogTitle></DialogHeader>
             <Form {...form}>
@@ -470,7 +474,9 @@ function UsersTab() {
                   <TableCell className="text-sm">{u.username}</TableCell>
                   <TableCell className="text-sm">{u.email}</TableCell>
                   <TableCell>
-                    <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs capitalize">{u.role}</Badge>
+                    <Badge variant={u.role === "admin" || u.role === "master_admin" ? "default" : "secondary"} className="text-xs capitalize">
+                      {u.role === "master_admin" ? "Master Admin" : u.role}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -493,30 +499,32 @@ function UsersTab() {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => toggleRoleMutation.mutate({ id: u.id, role: u.role === "admin" ? "customer" : "admin" })}
-                        data-testid={`button-toggle-role-${u.id}`}
-                      >
-                        {u.role === "admin" ? <Shield className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                      </Button>
-                      <Button
+                      {canManage && u.role !== "master_admin" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => toggleRoleMutation.mutate({ id: u.id, role: u.role === "admin" ? "customer" : "admin" })}
+                          data-testid={`button-toggle-role-${u.id}`}
+                        >
+                          {u.role === "admin" ? <Shield className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                        </Button>
+                      )}
+                      {canManage && <Button
                         size="icon"
                         variant="ghost"
                         onClick={() => { setSelectedUser(u); setResetDialogOpen(true); }}
                         data-testid={`button-reset-password-${u.id}`}
                       >
                         <RotateCcw className="w-4 h-4" />
-                      </Button>
-                      <Button
+                      </Button>}
+                      {canManage && <Button
                         size="icon"
                         variant="ghost"
                         onClick={() => deleteMutation.mutate(u.id)}
                         data-testid={`button-delete-user-${u.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </Button>}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -530,7 +538,7 @@ function UsersTab() {
   );
 }
 
-function ServicesTab() {
+function ServicesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -583,9 +591,9 @@ function ServicesTab() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold">Services ({services?.length || 0})</h3>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditId(null); form.reset(); } }}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-add-service"><Plus className="w-4 h-4 mr-1" /> Add Service</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader><DialogTitle>{editId ? "Edit Service" : "Add Service"}</DialogTitle></DialogHeader>
             <Form {...form}>
@@ -641,12 +649,12 @@ function ServicesTab() {
                   <TableCell><Badge variant="secondary" className="text-xs capitalize">{s.status}</Badge></TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(s)} data-testid={`button-edit-service-${s.id}`}>
+                      {canManage && <Button size="icon" variant="ghost" onClick={() => openEdit(s)} data-testid={`button-edit-service-${s.id}`}>
                         <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(s.id)} data-testid={`button-delete-service-${s.id}`}>
+                      </Button>}
+                      {canManage && <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(s.id)} data-testid={`button-delete-service-${s.id}`}>
                         <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </Button>}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -660,7 +668,7 @@ function ServicesTab() {
   );
 }
 
-function AlertsTab() {
+function AlertsTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
@@ -737,9 +745,9 @@ function AlertsTab() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold">Alerts ({alerts?.length || 0})</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-create-alert"><Plus className="w-4 h-4 mr-1" /> Create Alert</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader><DialogTitle>Create Service Alert</DialogTitle></DialogHeader>
             <Form {...form}>
@@ -861,7 +869,7 @@ function AlertsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {alert.status !== "resolved" && (
+                  {canManage && alert.status !== "resolved" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => { setSelectedAlertId(alert.id); setUpdateDialogOpen(true); }} data-testid={`button-update-alert-${alert.id}`}>
                         Update
@@ -871,7 +879,7 @@ function AlertsTab() {
                       </Button>
                     </>
                   )}
-                  <AlertDialog>
+                  {canManage && <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="icon" variant="ghost" data-testid={`button-delete-alert-${alert.id}`}>
                         <Trash2 className="w-4 h-4" />
@@ -887,7 +895,7 @@ function AlertsTab() {
                         <AlertDialogAction onClick={() => deleteMutation.mutate(alert.id)} data-testid={`button-confirm-delete-alert-${alert.id}`}>Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
+                  </AlertDialog>}
                 </div>
               </CardContent>
             </Card>
@@ -898,7 +906,7 @@ function AlertsTab() {
   );
 }
 
-function NewsTab() {
+function NewsTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -997,9 +1005,9 @@ function NewsTab() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold">News Stories ({news?.length || 0})</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-create-news"><Plus className="w-4 h-4 mr-1" /> Publish Story</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader><DialogTitle>Publish News Story</DialogTitle></DialogHeader>
             <Form {...form}>
@@ -1037,14 +1045,14 @@ function NewsTab() {
                     <p className="text-xs text-muted-foreground line-clamp-1">{story.content}</p>
                   </div>
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
+                {canManage && <div className="flex gap-1 flex-shrink-0">
                   <Button size="icon" variant="ghost" onClick={() => openEditDialog(story)} data-testid={`button-edit-news-${story.id}`}>
                     <Edit className="w-4 h-4" />
                   </Button>
                   <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(story.id)} data-testid={`button-delete-news-${story.id}`}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
-                </div>
+                </div>}
               </CardContent>
             </Card>
           ))}
@@ -1094,7 +1102,7 @@ const sendMessageSchema = z.object({
   body: z.string().min(1, "Message is required"),
 });
 
-function MessagesTab() {
+function MessagesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -1143,9 +1151,9 @@ function MessagesTab() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="font-semibold">Private Messages</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-send-message"><Send className="w-4 h-4 mr-1" /> Send Message</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader><DialogTitle>Send Private Message</DialogTitle></DialogHeader>
             <Form {...form}>
@@ -1206,7 +1214,7 @@ function MessagesTab() {
                     {format(new Date(msg.createdAt), "MMM d, yyyy 'at' h:mm a")}
                   </p>
                 </div>
-                <AlertDialog>
+                {canManage && <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button size="icon" variant="ghost" data-testid={`button-delete-sent-message-${msg.id}`}>
                       <Trash2 className="w-4 h-4" />
@@ -1222,7 +1230,7 @@ function MessagesTab() {
                       <AlertDialogAction onClick={() => deleteSentMutation.mutate(msg.id)} data-testid="button-confirm-delete-sent-message">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
-                </AlertDialog>
+                </AlertDialog>}
               </CardContent>
             </Card>
           ))}
@@ -1237,7 +1245,7 @@ const quickResponseSchema = z.object({
   message: z.string().min(1, "Message is required"),
 });
 
-function QuickResponsesTab() {
+function QuickResponsesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingQr, setEditingQr] = useState<QuickResponse | null>(null);
@@ -1318,11 +1326,11 @@ function QuickResponsesTab() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold" data-testid="text-quick-responses-title">Quick Responses</h2>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingQr(null); form.reset(); } }}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button size="sm" onClick={openCreate} data-testid="button-add-quick-response">
               <Plus className="w-4 h-4 mr-1" /> Add Response
             </Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingQr ? "Edit Quick Response" : "Add Quick Response"}</DialogTitle>
@@ -1373,7 +1381,7 @@ function QuickResponsesTab() {
                     <p className="font-medium text-sm" data-testid={`text-qr-title-${qr.id}`}>{qr.title}</p>
                     <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap" data-testid={`text-qr-message-${qr.id}`}>{qr.message}</p>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  {canManage && <div className="flex items-center gap-1 flex-shrink-0">
                     <Button size="icon" variant="ghost" onClick={() => openEdit(qr)} data-testid={`button-edit-qr-${qr.id}`}>
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -1394,7 +1402,7 @@ function QuickResponsesTab() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </div>
+                  </div>}
                 </div>
               </CardContent>
             </Card>
@@ -1407,7 +1415,7 @@ function QuickResponsesTab() {
 
 type EnrichedReportRequest = ReportRequest & { customerName?: string; customerEmail?: string; serviceName?: string };
 
-function ReportsRequestsTab() {
+function ReportsRequestsTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updatingReport, setUpdatingReport] = useState<EnrichedReportRequest | null>(null);
@@ -1522,7 +1530,7 @@ function ReportsRequestsTab() {
                       <span>{format(new Date(rr.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  {canManage && <div className="flex items-center gap-1 flex-shrink-0">
                     <Button size="sm" variant="outline" onClick={() => openUpdateDialog(rr)} data-testid={`button-update-report-${rr.id}`}>
                       <Edit className="w-3 h-3 mr-1" /> Update
                     </Button>
@@ -1543,7 +1551,7 @@ function ReportsRequestsTab() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </div>
+                  </div>}
                 </div>
               </CardContent>
             </Card>
@@ -1602,7 +1610,7 @@ function ReportsRequestsTab() {
   );
 }
 
-function ServiceUpdatesTab() {
+function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
@@ -1662,9 +1670,9 @@ function ServiceUpdatesTab() {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold" data-testid="text-admin-service-updates-title">Service Updates</h2>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
+          {canManage && <DialogTrigger asChild>
             <Button data-testid="button-add-service-update"><Plus className="w-4 h-4 mr-2" />Add Service Update</Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add Service Update</DialogTitle>
@@ -1759,7 +1767,7 @@ function ServiceUpdatesTab() {
                       </span>
                     </div>
                   </div>
-                  <AlertDialog>
+                  {canManage && <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" data-testid={`button-admin-delete-update-${update.id}`}>
                         <Trash2 className="w-4 h-4" />
@@ -1775,7 +1783,7 @@ function ServiceUpdatesTab() {
                         <AlertDialogAction onClick={() => deleteMutation.mutate(update.id)}>Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
+                  </AlertDialog>}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1789,7 +1797,7 @@ function ServiceUpdatesTab() {
   );
 }
 
-function EmailTemplatesTab() {
+function EmailTemplatesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [editSubject, setEditSubject] = useState("");
@@ -1888,10 +1896,11 @@ function EmailTemplatesTab() {
                     <Switch
                       checked={template.enabled !== false}
                       onCheckedChange={(checked) => toggleEnabledMutation.mutate({ id: template.id, enabled: checked })}
+                      disabled={!canManage}
                       data-testid={`switch-template-enabled-${template.templateKey}`}
                     />
                   </div>
-                  <Button
+                  {canManage && <Button
                     size="sm"
                     variant="outline"
                     className="gap-1"
@@ -1900,7 +1909,7 @@ function EmailTemplatesTab() {
                   >
                     <Edit className="w-3.5 h-3.5" />
                     Edit
-                  </Button>
+                  </Button>}
                 </div>
               </div>
             </CardContent>
@@ -2034,8 +2043,709 @@ function EmailTemplatesTab() {
   );
 }
 
+const ALL_PERMISSIONS = [
+  { category: "Users", perms: ["users.view", "users.manage"] },
+  { category: "Services", perms: ["services.view", "services.manage"] },
+  { category: "Alerts", perms: ["alerts.view", "alerts.manage"] },
+  { category: "News", perms: ["news.view", "news.manage"] },
+  { category: "Messages", perms: ["messages.view", "messages.manage"] },
+  { category: "Quick Responses", perms: ["quick_responses.view", "quick_responses.manage"] },
+  { category: "Service Updates", perms: ["service_updates.view", "service_updates.manage"] },
+  { category: "Reports/Requests", perms: ["reports.view", "reports.manage"] },
+  { category: "Email Templates", perms: ["email_templates.view", "email_templates.manage"] },
+  { category: "Support Tickets", perms: ["support_tickets"] },
+  { category: "Admin Chat", perms: ["admin_chat"] },
+];
+
+function AdminManagementTab() {
+  const { toast } = useToast();
+  const { data: roles = [] } = useQuery<AdminRole[]>({ queryKey: ["/api/admin/roles"] });
+  const { data: categories = [] } = useQuery<TicketCategory[]>({ queryKey: ["/api/ticket-categories"] });
+  const { data: allUsers = [] } = useQuery<(User & { adminRoleId?: string })[]>({ queryKey: ["/api/admin/users"] });
+  const adminUsers = allUsers.filter(u => u.role === "admin" || u.role === "master_admin");
+
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
+  const [roleName, setRoleName] = useState("");
+  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
+
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState<TicketCategory | null>(null);
+  const [catName, setCatName] = useState("");
+  const [catDescription, setCatDescription] = useState("");
+  const [catRoleIds, setCatRoleIds] = useState<string[]>([]);
+
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastUserIds, setBroadcastUserIds] = useState<string[]>([]);
+
+  const createRoleMutation = useMutation({
+    mutationFn: async (data: { name: string; permissions: string[] }) => {
+      await apiRequest("POST", "/api/admin/roles", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      setRoleDialogOpen(false);
+      setEditingRole(null);
+      toast({ title: "Role created" });
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; name: string; permissions: string[] }) => {
+      await apiRequest("PATCH", `/api/admin/roles/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      setRoleDialogOpen(false);
+      setEditingRole(null);
+      toast({ title: "Role updated" });
+    },
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/roles/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      toast({ title: "Role deleted" });
+    },
+  });
+
+  const createCatMutation = useMutation({
+    mutationFn: async (data: { name: string; description: string; assignedRoleIds: string[] }) => {
+      await apiRequest("POST", "/api/admin/ticket-categories", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-categories"] });
+      setCatDialogOpen(false);
+      setEditingCat(null);
+      toast({ title: "Category created" });
+    },
+  });
+
+  const updateCatMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; name: string; description: string; assignedRoleIds: string[] }) => {
+      await apiRequest("PATCH", `/api/admin/ticket-categories/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-categories"] });
+      setCatDialogOpen(false);
+      setEditingCat(null);
+      toast({ title: "Category updated" });
+    },
+  });
+
+  const deleteCatMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/ticket-categories/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-categories"] });
+      toast({ title: "Category deleted" });
+    },
+  });
+
+  const broadcastMutation = useMutation({
+    mutationFn: async (data: { title: string; message: string; userIds: string[] }) => {
+      await apiRequest("POST", "/api/admin/broadcast-push", data);
+    },
+    onSuccess: () => {
+      setBroadcastTitle("");
+      setBroadcastMessage("");
+      setBroadcastUserIds([]);
+      toast({ title: "Broadcast sent" });
+    },
+  });
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async ({ id, role, adminRoleId }: { id: string; role?: string; adminRoleId?: string | null }) => {
+      await apiRequest("PATCH", `/api/admin/users/${id}/role`, { role, adminRoleId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "User updated" });
+    },
+  });
+
+  const openRoleDialog = (role?: AdminRole) => {
+    if (role) {
+      setEditingRole(role);
+      setRoleName(role.name);
+      setRolePermissions(role.permissions || []);
+    } else {
+      setEditingRole(null);
+      setRoleName("");
+      setRolePermissions([]);
+    }
+    setRoleDialogOpen(true);
+  };
+
+  const openCatDialog = (cat?: TicketCategory) => {
+    if (cat) {
+      setEditingCat(cat);
+      setCatName(cat.name);
+      setCatDescription(cat.description || "");
+      setCatRoleIds(cat.assignedRoleIds || []);
+    } else {
+      setEditingCat(null);
+      setCatName("");
+      setCatDescription("");
+      setCatRoleIds([]);
+    }
+    setCatDialogOpen(true);
+  };
+
+  const togglePermission = (perm: string) => {
+    setRolePermissions(prev => prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]);
+  };
+
+  const toggleCatRole = (roleId: string) => {
+    setCatRoleIds(prev => prev.includes(roleId) ? prev.filter(r => r !== roleId) : [...prev, roleId]);
+  };
+
+  const toggleBroadcastUser = (userId: string) => {
+    setBroadcastUserIds(prev => prev.includes(userId) ? prev.filter(u => u !== userId) : [...prev, userId]);
+  };
+
+  return (
+    <Tabs defaultValue="roles" className="space-y-4">
+      <TabsList data-testid="tabs-admin-management">
+        <TabsTrigger value="roles" data-testid="tab-roles">Roles</TabsTrigger>
+        <TabsTrigger value="categories" data-testid="tab-categories">Ticket Categories</TabsTrigger>
+        <TabsTrigger value="user-roles" data-testid="tab-user-roles">User Roles</TabsTrigger>
+        <TabsTrigger value="broadcast" data-testid="tab-broadcast">Broadcast Push</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="roles" className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Admin Roles</h3>
+          <Button size="sm" className="gap-1" onClick={() => openRoleDialog()} data-testid="button-create-role">
+            <Plus className="w-4 h-4" /> Create Role
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {roles.map(role => (
+            <Card key={role.id} data-testid={`card-role-${role.id}`}>
+              <CardContent className="flex items-center justify-between py-3 px-4">
+                <div>
+                  <p className="font-medium">{role.name}</p>
+                  <p className="text-xs text-muted-foreground">{(role.permissions || []).length} permissions</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openRoleDialog(role)} data-testid={`button-edit-role-${role.id}`}>
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" data-testid={`button-delete-role-${role.id}`}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Role</AlertDialogTitle>
+                        <AlertDialogDescription>This will remove the role from all assigned admins. Continue?</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteRoleMutation.mutate(role.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {roles.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No roles created yet</p>}
+        </div>
+
+        <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingRole ? "Edit Role" : "Create Role"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Role Name</Label>
+                <Input value={roleName} onChange={(e) => setRoleName(e.target.value)} placeholder="e.g. Tier 1 Support" data-testid="input-role-name" />
+              </div>
+              <div>
+                <Label className="mb-2 block">Permissions</Label>
+                <div className="space-y-3">
+                  {ALL_PERMISSIONS.map(({ category, perms }) => (
+                    <div key={category} className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">{category}</p>
+                      <div className="flex flex-wrap gap-3 ml-2">
+                        {perms.map(p => (
+                          <label key={p} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <Checkbox checked={rolePermissions.includes(p)} onCheckedChange={() => togglePermission(p)} data-testid={`checkbox-perm-${p}`} />
+                            {p.split(".").pop()}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                disabled={!roleName || createRoleMutation.isPending || updateRoleMutation.isPending}
+                onClick={() => {
+                  const data = { name: roleName, permissions: rolePermissions };
+                  if (editingRole) {
+                    updateRoleMutation.mutate({ id: editingRole.id, ...data });
+                  } else {
+                    createRoleMutation.mutate(data);
+                  }
+                }}
+                data-testid="button-save-role"
+              >
+                {editingRole ? "Update Role" : "Create Role"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </TabsContent>
+
+      <TabsContent value="categories" className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Ticket Categories</h3>
+          <Button size="sm" className="gap-1" onClick={() => openCatDialog()} data-testid="button-create-category">
+            <Plus className="w-4 h-4" /> Create Category
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {categories.map(cat => (
+            <Card key={cat.id} data-testid={`card-category-${cat.id}`}>
+              <CardContent className="flex items-center justify-between py-3 px-4">
+                <div>
+                  <p className="font-medium">{cat.name}</p>
+                  <p className="text-xs text-muted-foreground">{cat.description || "No description"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(cat.assignedRoleIds || []).length} role(s) assigned
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openCatDialog(cat)} data-testid={`button-edit-category-${cat.id}`}>
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" data-testid={`button-delete-category-${cat.id}`}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                        <AlertDialogDescription>Tickets in this category will become uncategorized. Continue?</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteCatMutation.mutate(cat.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {categories.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No categories created yet</p>}
+        </div>
+
+        <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingCat ? "Edit Category" : "Create Category"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Category Name</Label>
+                <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="e.g. Billing" data-testid="input-category-name" />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Input value={catDescription} onChange={(e) => setCatDescription(e.target.value)} placeholder="Optional description" data-testid="input-category-description" />
+              </div>
+              <div>
+                <Label className="mb-2 block">Assigned Admin Roles</Label>
+                <div className="space-y-2">
+                  {roles.map(role => (
+                    <label key={role.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={catRoleIds.includes(role.id)} onCheckedChange={() => toggleCatRole(role.id)} data-testid={`checkbox-cat-role-${role.id}`} />
+                      {role.name}
+                    </label>
+                  ))}
+                  {roles.length === 0 && <p className="text-xs text-muted-foreground">Create admin roles first</p>}
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                disabled={!catName || createCatMutation.isPending || updateCatMutation.isPending}
+                onClick={() => {
+                  const data = { name: catName, description: catDescription, assignedRoleIds: catRoleIds };
+                  if (editingCat) {
+                    updateCatMutation.mutate({ id: editingCat.id, ...data });
+                  } else {
+                    createCatMutation.mutate(data);
+                  }
+                }}
+                data-testid="button-save-category"
+              >
+                {editingCat ? "Update Category" : "Create Category"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </TabsContent>
+
+      <TabsContent value="user-roles" className="space-y-4">
+        <h3 className="text-lg font-semibold">Admin User Roles</h3>
+        <div className="space-y-2">
+          {adminUsers.filter(u => u.username !== "cowboymedia-support").map(u => (
+            <Card key={u.id} data-testid={`card-admin-user-${u.id}`}>
+              <CardContent className="flex items-center justify-between py-3 px-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{u.fullName}</p>
+                    {u.role === "master_admin" && <Badge variant="default" className="text-xs"><Crown className="w-3 h-3 mr-1" />Master</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">@{u.username}</p>
+                </div>
+                {u.role !== "master_admin" && (
+                  <Select
+                    value={u.adminRoleId || "_none"}
+                    onValueChange={(val) => updateUserRoleMutation.mutate({ id: u.id, adminRoleId: val === "_none" ? null : val })}
+                  >
+                    <SelectTrigger className="w-[180px]" data-testid={`select-role-${u.id}`}>
+                      <SelectValue placeholder="No role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">No Role</SelectItem>
+                      {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </TabsContent>
+
+      <TabsContent value="broadcast" className="space-y-4">
+        <h3 className="text-lg font-semibold">Broadcast Push Notification</h3>
+        <div className="space-y-4">
+          <div>
+            <Label>Title</Label>
+            <Input value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)} placeholder="Notification title" data-testid="input-broadcast-title" />
+          </div>
+          <div>
+            <Label>Message</Label>
+            <Textarea value={broadcastMessage} onChange={(e) => setBroadcastMessage(e.target.value)} placeholder="Notification message" data-testid="input-broadcast-message" />
+          </div>
+          <div>
+            <Label className="mb-2 block">Select Admins</Label>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {adminUsers.filter(u => u.username !== "cowboymedia-support").map(u => (
+                <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={broadcastUserIds.includes(u.id)} onCheckedChange={() => toggleBroadcastUser(u.id)} data-testid={`checkbox-broadcast-${u.id}`} />
+                  {u.fullName} (@{u.username})
+                </label>
+              ))}
+            </div>
+          </div>
+          <Button
+            className="w-full"
+            disabled={!broadcastTitle || !broadcastMessage || broadcastUserIds.length === 0 || broadcastMutation.isPending}
+            onClick={() => broadcastMutation.mutate({ title: broadcastTitle, message: broadcastMessage, userIds: broadcastUserIds })}
+            data-testid="button-send-broadcast"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            {broadcastMutation.isPending ? "Sending..." : `Send to ${broadcastUserIds.length} admin(s)`}
+          </Button>
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+interface ChatMessage {
+  id: string;
+  threadId: string;
+  senderId: string;
+  senderName: string;
+  message: string;
+  fileUrl: string | null;
+  fileType: string | null;
+  createdAt: string;
+}
+
+interface ChatThread {
+  id: string;
+  name: string | null;
+  createdBy: string;
+  createdAt: string;
+  participants: { id: string; fullName: string; username: string }[];
+  lastMessage: ChatMessage | null;
+}
+
+function AdminChatTab() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [chatParticipantIds, setChatParticipantIds] = useState<string[]>([]);
+  const [chatThreadName, setChatThreadName] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [chatFile, setChatFile] = useState<File | null>(null);
+
+  const { data: threads = [] } = useQuery<ChatThread[]>({
+    queryKey: ["/api/admin/chat/threads"],
+    refetchInterval: 10000,
+  });
+
+  const { data: allUsers = [] } = useQuery<User[]>({ queryKey: ["/api/admin/users"] });
+  const adminUsers = allUsers.filter(u => (u.role === "admin" || u.role === "master_admin") && u.username !== "cowboymedia-support" && u.id !== user?.id);
+
+  const { data: messages = [] } = useQuery<ChatMessage[]>({
+    queryKey: ["/api/admin/chat/threads", activeThreadId, "messages"],
+    enabled: !!activeThreadId,
+    refetchInterval: 5000,
+  });
+
+  const createThreadMutation = useMutation({
+    mutationFn: async (data: { name: string | null; participantIds: string[] }) => {
+      const res = await apiRequest("POST", "/api/admin/chat/threads", data);
+      return res.json();
+    },
+    onSuccess: (thread: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads"] });
+      setNewChatOpen(false);
+      setChatParticipantIds([]);
+      setChatThreadName("");
+      setActiveThreadId(thread.id);
+    },
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ threadId, message, file }: { threadId: string; message: string; file: File | null }) => {
+      const formData = new FormData();
+      formData.append("message", message);
+      if (file) formData.append("file", file);
+      const res = await fetch(`/api/admin/chat/threads/${threadId}/messages`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to send");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads", activeThreadId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads"] });
+      setMessageText("");
+      setChatFile(null);
+    },
+  });
+
+  useEffect(() => {
+    if (!activeThreadId) return;
+    const handleWs = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "admin_chat_message" && data.threadId === activeThreadId) {
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads", activeThreadId, "messages"] });
+        }
+        if (data.type === "admin_chat_message") {
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads"] });
+        }
+      } catch {}
+    };
+    const ws = (window as any).__ws;
+    if (ws) ws.addEventListener("message", handleWs);
+    return () => { if (ws) ws.removeEventListener("message", handleWs); };
+  }, [activeThreadId]);
+
+  const activeThread = threads.find(t => t.id === activeThreadId);
+
+  const getThreadDisplayName = (thread: ChatThread) => {
+    if (thread.name) return thread.name;
+    const others = thread.participants.filter(p => p.id !== user?.id);
+    return others.map(p => p.fullName).join(", ") || "Chat";
+  };
+
+  return (
+    <div className="flex h-[600px] rounded-lg border overflow-hidden" data-testid="admin-chat-container">
+      <div className="w-1/3 border-r flex flex-col">
+        <div className="p-3 border-b flex justify-between items-center">
+          <h4 className="font-semibold text-sm">Threads</h4>
+          <Button size="icon" variant="ghost" onClick={() => setNewChatOpen(true)} data-testid="button-new-chat">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+        <ScrollArea className="flex-1">
+          {threads.map(thread => (
+            <button
+              key={thread.id}
+              className={`w-full text-left p-3 border-b hover:bg-accent/50 transition-colors ${activeThreadId === thread.id ? "bg-accent" : ""}`}
+              onClick={() => setActiveThreadId(thread.id)}
+              data-testid={`thread-${thread.id}`}
+            >
+              <p className="font-medium text-sm truncate">{getThreadDisplayName(thread)}</p>
+              {thread.lastMessage && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{thread.lastMessage.message || "📎 File"}</p>
+              )}
+            </button>
+          ))}
+          {threads.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No chats yet</p>}
+        </ScrollArea>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        {activeThread ? (
+          <>
+            <div className="p-3 border-b">
+              <p className="font-semibold text-sm">{getThreadDisplayName(activeThread)}</p>
+              <p className="text-xs text-muted-foreground">{activeThread.participants.map(p => p.fullName).join(", ")}</p>
+            </div>
+            <ScrollArea className="flex-1 p-3">
+              <div className="space-y-3">
+                {messages.map(msg => {
+                  const isMe = msg.senderId === user?.id;
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
+                      <div className={`max-w-[75%] rounded-lg p-2.5 ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                        {!isMe && <p className="text-xs font-medium mb-1">{msg.senderName}</p>}
+                        {msg.message && <p className="text-sm whitespace-pre-wrap">{msg.message}</p>}
+                        {msg.fileUrl && msg.fileType?.startsWith("image/") && (
+                          <ImageLightbox src={msg.fileUrl} alt="attachment" className="max-w-full max-h-48 rounded mt-1" />
+                        )}
+                        {msg.fileUrl && msg.fileType?.startsWith("video/") && (
+                          <video src={msg.fileUrl} controls className="max-w-full max-h-48 rounded mt-1" />
+                        )}
+                        {msg.fileUrl && !msg.fileType?.startsWith("image/") && !msg.fileType?.startsWith("video/") && (
+                          <a href={msg.fileUrl} target="_blank" rel="noopener" className="text-xs underline mt-1 block">📎 Download file</a>
+                        )}
+                        <p className="text-[10px] opacity-60 mt-1">{format(new Date(msg.createdAt), "h:mm a")}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <div className="p-3 border-t flex gap-2 items-end">
+              <div className="flex-1 space-y-1">
+                {chatFile && <p className="text-xs text-muted-foreground">📎 {chatFile.name}</p>}
+                <div className="flex gap-2">
+                  <Input
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    placeholder="Type a message..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && (messageText.trim() || chatFile)) {
+                        e.preventDefault();
+                        sendMessageMutation.mutate({ threadId: activeThreadId!, message: messageText, file: chatFile });
+                      }
+                    }}
+                    data-testid="input-chat-message"
+                  />
+                  <input
+                    type="file"
+                    id="chat-file-input"
+                    className="hidden"
+                    onChange={(e) => setChatFile(e.target.files?.[0] || null)}
+                  />
+                  <Button variant="outline" size="icon" onClick={() => document.getElementById("chat-file-input")?.click()} data-testid="button-chat-attach">
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    disabled={(!messageText.trim() && !chatFile) || sendMessageMutation.isPending}
+                    onClick={() => sendMessageMutation.mutate({ threadId: activeThreadId!, message: messageText, file: chatFile })}
+                    data-testid="button-chat-send"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <p className="text-sm">Select a thread or start a new chat</p>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Chat</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Thread Name (optional for groups)</Label>
+              <Input value={chatThreadName} onChange={(e) => setChatThreadName(e.target.value)} placeholder="e.g. Project Discussion" data-testid="input-thread-name" />
+            </div>
+            <div>
+              <Label className="mb-2 block">Select Participants</Label>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {adminUsers.map(u => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={chatParticipantIds.includes(u.id)}
+                      onCheckedChange={() => setChatParticipantIds(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                      data-testid={`checkbox-participant-${u.id}`}
+                    />
+                    {u.fullName} (@{u.username})
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              disabled={chatParticipantIds.length === 0 || createThreadMutation.isPending}
+              onClick={() => createThreadMutation.mutate({ name: chatThreadName || null, participantIds: chatParticipantIds })}
+              data-testid="button-create-thread"
+            >
+              Start Chat
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const TILE_PERM_MAP: Record<string, string> = {
+  "users": "users.view",
+  "services": "services.view",
+  "alerts": "alerts.view",
+  "news": "news.view",
+  "messages": "messages.view",
+  "quick-responses": "quick_responses.view",
+  "service-updates": "service_updates.view",
+  "reports-requests": "reports.view",
+  "email-templates": "email_templates.view",
+  "admin-chat": "admin_chat",
+};
+
+const TILE_MANAGE_MAP: Record<string, string> = {
+  "users": "users.manage",
+  "services": "services.manage",
+  "alerts": "alerts.manage",
+  "news": "news.manage",
+  "messages": "messages.manage",
+  "quick-responses": "quick_responses.manage",
+  "service-updates": "service_updates.manage",
+  "reports-requests": "reports.manage",
+  "email-templates": "email_templates.manage",
+};
+
 export default function AdminPortal() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isMasterAdmin, hasPermission } = useAuth();
 
   const { data: contentCounts } = useQuery<Record<string, number>>({
     queryKey: ["/api/content-notifications/counts"],
@@ -2060,7 +2770,7 @@ export default function AdminPortal() {
 
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
-  const sections = [
+  const allSections = [
     { key: "users", label: "Users", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
     { key: "services", label: "Services", icon: Server, color: "text-green-500", bg: "bg-green-500/10" },
     { key: "alerts", label: "Alerts", icon: AlertTriangle, color: "text-amber-500", bg: "bg-amber-500/10" },
@@ -2070,19 +2780,35 @@ export default function AdminPortal() {
     { key: "service-updates", label: "Service Updates", icon: RefreshCw, color: "text-teal-500", bg: "bg-teal-500/10" },
     { key: "reports-requests", label: "Reports/Requests", icon: FileText, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     { key: "email-templates", label: "Email Templates", icon: MailOpen, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { key: "admin-chat", label: "Admin Chat", icon: MessageSquare, color: "text-pink-500", bg: "bg-pink-500/10" },
+    { key: "admin-management", label: "Admin Management", icon: Crown, color: "text-yellow-500", bg: "bg-yellow-500/10", masterOnly: true },
   ];
+
+  const sections = allSections.filter(s => {
+    if (s.masterOnly) return isMasterAdmin;
+    const perm = TILE_PERM_MAP[s.key];
+    return perm ? hasPermission(perm) : true;
+  });
+
+  const canManageSection = (key: string) => {
+    if (isMasterAdmin) return true;
+    const perm = TILE_MANAGE_MAP[key];
+    return perm ? hasPermission(perm) : false;
+  };
 
   const renderContent = () => {
     switch (activeSection) {
-      case "users": return <UsersTab />;
-      case "services": return <ServicesTab />;
-      case "alerts": return <AlertsTab />;
-      case "news": return <NewsTab />;
-      case "messages": return <MessagesTab />;
-      case "quick-responses": return <QuickResponsesTab />;
-      case "service-updates": return <ServiceUpdatesTab />;
-      case "reports-requests": return <ReportsRequestsTab />;
-      case "email-templates": return <EmailTemplatesTab />;
+      case "users": return <UsersTab canManage={canManageSection("users")} />;
+      case "services": return <ServicesTab canManage={canManageSection("services")} />;
+      case "alerts": return <AlertsTab canManage={canManageSection("alerts")} />;
+      case "news": return <NewsTab canManage={canManageSection("news")} />;
+      case "messages": return <MessagesTab canManage={canManageSection("messages")} />;
+      case "quick-responses": return <QuickResponsesTab canManage={canManageSection("quick-responses")} />;
+      case "service-updates": return <ServiceUpdatesTab canManage={canManageSection("service-updates")} />;
+      case "reports-requests": return <ReportsRequestsTab canManage={canManageSection("reports-requests")} />;
+      case "email-templates": return <EmailTemplatesTab canManage={canManageSection("email-templates")} />;
+      case "admin-chat": return <AdminChatTab />;
+      case "admin-management": return isMasterAdmin ? <AdminManagementTab /> : null;
       default: return null;
     }
   };
