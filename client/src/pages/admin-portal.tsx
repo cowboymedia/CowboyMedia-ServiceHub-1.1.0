@@ -49,6 +49,7 @@ const createAlertSchema = z.object({
 const addUpdateSchema = z.object({
   message: z.string().min(1, "Message is required"),
   status: z.string().min(1, "Status is required"),
+  serviceImpact: z.string().default("no_change"),
   sendPush: z.boolean().default(true),
   sendEmail: z.boolean().default(true),
 });
@@ -690,7 +691,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
 
   const updateForm = useForm({
     resolver: zodResolver(addUpdateSchema),
-    defaultValues: { message: "", status: "investigating", sendPush: true, sendEmail: true },
+    defaultValues: { message: "", status: "investigating", serviceImpact: "no_change", sendPush: true, sendEmail: true },
   });
 
   const createMutation = useMutation({
@@ -845,6 +846,19 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
                       <SelectItem value="identified">Identified</SelectItem>
                       <SelectItem value="monitoring">Monitoring</SelectItem>
                       <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                <FormMessage /></FormItem>
+              )} />
+              <FormField control={updateForm.control} name="serviceImpact" render={({ field }) => (
+                <FormItem><FormLabel>Service Impact</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger data-testid="select-update-service-impact"><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="no_change">No Change</SelectItem>
+                      <SelectItem value="degraded">Degraded Performance</SelectItem>
+                      <SelectItem value="outage">Full Outage</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
                     </SelectContent>
                   </Select>
                 <FormMessage /></FormItem>

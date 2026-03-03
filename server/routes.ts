@@ -986,7 +986,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/alerts/:id/updates", requirePermission("alerts.view", "alerts.manage"), async (req, res) => {
     try {
-      const { sendPush, sendEmail, ...updateData } = req.body;
+      const { sendPush, sendEmail, serviceImpact, ...updateData } = req.body;
       const update = await storage.createAlertUpdate({
         alertId: req.params.id,
         message: updateData.message,
@@ -1005,14 +1005,24 @@ export async function registerRoutes(
         if (updateData.status === "resolved") {
           await storage.updateService(alert.serviceId, { status: "operational" });
           broadcast({ type: "service_updated", serviceId: alert.serviceId });
+        } else if (serviceImpact && serviceImpact !== "no_change") {
+          await storage.updateService(alert.serviceId, { status: serviceImpact });
+          broadcast({ type: "service_updated", serviceId: alert.serviceId });
         }
         const isResolved = updateData.status === "resolved";
+        const impactLabels: Record<string, string> = { degraded: "Degraded", outage: "Outage", maintenance: "Maintenance" };
+        const hasImpactChange = !isResolved && serviceImpact && serviceImpact !== "no_change";
+        const impactLabel = hasImpactChange ? impactLabels[serviceImpact] || serviceImpact : null;
         const pushTitle = isResolved
           ? `${serviceName}: Resolved — Now Operational`
-          : `${serviceName} Alert Update: ${alert.title}`;
+          : impactLabel
+            ? `${serviceName}: ${impactLabel} — ${alert.title}`
+            : `${serviceName} Alert Update: ${alert.title}`;
         const emailTitle = isResolved
           ? `${serviceName}: Issue Resolved — Service Restored`
-          : `${serviceName} Update: ${alert.title}`;
+          : impactLabel
+            ? `${serviceName}: ${impactLabel} — ${alert.title}`
+            : `${serviceName} Update: ${alert.title}`;
         const allUsers = await storage.getAllUsers();
         const subscribers = allUsers.filter(u => u.subscribedServices?.includes(alert.serviceId) && u.id !== req.session.userId);
         for (const u of subscribers) {
