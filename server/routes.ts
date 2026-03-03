@@ -359,8 +359,18 @@ export async function registerRoutes(
         if (!accessibleCategoryIds.includes("*")) {
           result = result.filter(t => !t.categoryId || accessibleCategoryIds.includes(t.categoryId));
         }
+        const pendingTransfers = await storage.getPendingTransfersForAdmin(user.id);
+        const pendingTransferTicketIds = new Set(pendingTransfers.map(t => t.ticketId));
+        result = result.filter(t => !t.claimedBy || t.claimedBy === user.id || pendingTransferTicketIds.has(t.id));
       }
-      res.json(result);
+      const enriched = await Promise.all(result.map(async (t) => {
+        if (t.claimedBy) {
+          const claimedAdmin = await storage.getUser(t.claimedBy);
+          return { ...t, claimedByName: claimedAdmin?.fullName || "Unknown" };
+        }
+        return { ...t, claimedByName: null };
+      }));
+      res.json(enriched);
     } else {
       const result = await storage.getTicketsByCustomer(user.id);
       res.json(result);
@@ -381,7 +391,18 @@ export async function registerRoutes(
         return res.status(403).json({ message: "No access to this ticket category" });
       }
     }
-    res.json(ticket);
+    if (user.role === "admin" && ticket.claimedBy && ticket.claimedBy !== user.id) {
+      const pendingTransfer = await storage.getPendingTransferByTicketId(ticket.id);
+      if (!pendingTransfer || pendingTransfer.toAdminId !== user.id) {
+        return res.status(403).json({ message: "This ticket is claimed by another admin" });
+      }
+    }
+    let claimedByName: string | null = null;
+    if (ticket.claimedBy) {
+      const claimedAdmin = await storage.getUser(ticket.claimedBy);
+      claimedByName = claimedAdmin?.fullName || "Unknown";
+    }
+    res.json({ ...ticket, claimedByName });
   });
 
   app.post("/api/tickets", requireAuth, upload.single("image"), async (req, res) => {
@@ -594,6 +615,13 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ message: "Ticket not found" });
       broadcast({ type: "ticket_updated", ticket: updated });
 
+      const pendingTransfer = await storage.getPendingTransferByTicketId(req.params.id);
+      const isTransfer = pendingTransfer && pendingTransfer.toAdminId === admin.id;
+
+      if (isTransfer) {
+        await storage.updateTicketTransfer(pendingTransfer.id, { status: "accepted" });
+      }
+
       try {
         let supportUser = await storage.getUserByUsername("cowboymedia-support");
         if (!supportUser) {
@@ -606,7 +634,9 @@ export async function registerRoutes(
             theme: "light",
           });
         }
-        const claimMessage = `${admin.fullName} has claimed this ticket and will be assisting you.`;
+        const claimMessage = isTransfer
+          ? `Your ticket has been successfully transferred to ${admin.fullName} and they will be assisting you from here on out.`
+          : `${admin.fullName} has claimed this ticket and will be assisting you.`;
         const autoMessage = await storage.createTicketMessage({
           ticketId: ticket.id,
           senderId: supportUser.id,
@@ -618,22 +648,30 @@ export async function registerRoutes(
         console.error("Claim message error:", claimMsgErr);
       }
 
+      const pushTitle = isTransfer ? "Ticket Transferred" : "Ticket Claimed";
+      const pushBody = isTransfer
+        ? `Your ticket has been transferred to ${admin.fullName}: ${ticket.subject}`
+        : `${admin.fullName} is now handling your ticket: ${ticket.subject}`;
+
       sendPushToUser(ticket.customerId, {
-        title: "Ticket Claimed",
-        body: `${admin.fullName} is now handling your ticket: ${ticket.subject}`,
+        title: pushTitle,
+        body: pushBody,
         url: `/tickets/${ticket.id}`,
         tag: `ticket-${ticket.id}`,
       });
       storage.createTicketNotification({
         userId: ticket.customerId,
         ticketId: ticket.id,
-        type: "ticket_claimed",
-        message: `${admin.fullName} claimed your ticket: ${ticket.subject}`,
+        type: isTransfer ? "ticket_transferred" : "ticket_claimed",
+        message: isTransfer
+          ? `Your ticket has been transferred to ${admin.fullName}: ${ticket.subject}`
+          : `${admin.fullName} claimed your ticket: ${ticket.subject}`,
       });
 
       const customer = await storage.getUser(ticket.customerId);
       if (customer?.email && customer.emailNotifications !== false) {
-        sendTemplatedEmail(customer.email, "customer_ticket_claimed", {
+        const emailTemplate = isTransfer ? "customer_ticket_transferred" : "customer_ticket_claimed";
+        sendTemplatedEmail(customer.email, emailTemplate, {
           admin_name: admin.fullName,
           ticket_subject: ticket.subject,
           customer_name: customer.fullName,
@@ -641,6 +679,163 @@ export async function registerRoutes(
       }
 
       res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tickets/:id/transfer", requirePermission("support_tickets"), async (req, res) => {
+    try {
+      const { toAdminId, reason } = req.body;
+      if (!toAdminId || !reason) return res.status(400).json({ message: "Target admin and reason are required" });
+      const ticket = await storage.getTicket(req.params.id);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      const admin = await storage.getUser(req.session.userId!);
+      if (!admin) return res.status(401).json({ message: "Unauthorized" });
+      if (ticket.claimedBy !== admin.id && admin.role !== "master_admin") {
+        return res.status(403).json({ message: "Only the claiming admin can transfer this ticket" });
+      }
+      const targetAdmin = await storage.getUser(toAdminId);
+      if (!targetAdmin || (targetAdmin.role !== "admin" && targetAdmin.role !== "master_admin")) {
+        return res.status(400).json({ message: "Target must be an admin" });
+      }
+
+      const transfer = await storage.createTicketTransfer({
+        ticketId: ticket.id,
+        fromAdminId: admin.id,
+        toAdminId,
+        reason,
+      });
+
+      await storage.updateTicket(req.params.id, { claimedBy: null });
+
+      try {
+        let supportUser = await storage.getUserByUsername("cowboymedia-support");
+        if (!supportUser) {
+          supportUser = await storage.createUser({
+            username: "cowboymedia-support",
+            password: "nologin-system-account",
+            email: "noreply@cowboymedia.net",
+            fullName: "CowboyMedia Support",
+            role: "admin",
+            theme: "light",
+          });
+        }
+        const transferMsg = "Your ticket requires the assistance of another support agent. Please hold while we alert the appropriate department and transfer the ticket. We will send you a push notification/email (depending on your settings) when your ticket has been transferred and agent is ready to help. Thank you for your patience!";
+        const autoMessage = await storage.createTicketMessage({
+          ticketId: ticket.id,
+          senderId: supportUser.id,
+          message: transferMsg,
+          imageUrl: null,
+        });
+        broadcast({ type: "ticket_message", ticketId: ticket.id, message: autoMessage });
+      } catch (msgErr) {
+        console.error("Transfer message error:", msgErr);
+      }
+
+      broadcast({ type: "ticket_updated", ticket: { ...ticket, claimedBy: null } });
+
+      const customer = await storage.getUser(ticket.customerId);
+      const services = await storage.getAllServices();
+      const service = services.find(s => s.id === ticket.serviceId);
+      const categories = await storage.getAllTicketCategories();
+      const category = categories.find(c => c.id === ticket.categoryId);
+
+      sendPushToUser(toAdminId, {
+        title: "Ticket Transfer",
+        body: `${admin.fullName} transferred a ticket to you: ${ticket.subject} — Reason: ${reason}`,
+        url: `/tickets/${ticket.id}`,
+        tag: `ticket-transfer-${ticket.id}`,
+      });
+
+      storage.createTicketNotification({
+        userId: toAdminId,
+        ticketId: ticket.id,
+        type: "ticket_transfer",
+        message: `Ticket transferred from ${admin.fullName}: ${ticket.subject}`,
+      });
+
+      if (targetAdmin.email && targetAdmin.emailNotifications !== false) {
+        sendTemplatedEmail(targetAdmin.email, "admin_ticket_transfer", {
+          from_admin_name: admin.fullName,
+          transfer_reason: reason,
+          ticket_subject: ticket.subject,
+          ticket_description: ticket.description,
+          ticket_priority: ticket.priority,
+          customer_name: customer?.fullName || "Unknown",
+          customer_email: customer?.email || "N/A",
+        });
+      }
+
+      broadcast({
+        type: "ticket_transfer",
+        transfer,
+        ticket: {
+          id: ticket.id,
+          subject: ticket.subject,
+          description: ticket.description,
+          priority: ticket.priority,
+          serviceName: service?.name || null,
+          categoryName: category?.name || null,
+          createdAt: ticket.createdAt,
+        },
+        customer: {
+          fullName: customer?.fullName || "Unknown",
+          email: customer?.email || "N/A",
+          username: customer?.username || "Unknown",
+        },
+        fromAdmin: { fullName: admin.fullName },
+      });
+
+      res.json(transfer);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/ticket-transfers/pending", requirePermission("support_tickets"), async (req, res) => {
+    try {
+      const transfers = await storage.getPendingTransfersForAdmin(req.session.userId!);
+      const enriched = await Promise.all(transfers.map(async (t) => {
+        const ticket = await storage.getTicket(t.ticketId);
+        const customer = ticket ? await storage.getUser(ticket.customerId) : null;
+        const fromAdmin = await storage.getUser(t.fromAdminId);
+        const services = await storage.getAllServices();
+        const service = ticket ? services.find(s => s.id === ticket.serviceId) : null;
+        const categories = await storage.getAllTicketCategories();
+        const category = ticket ? categories.find(c => c.id === ticket.categoryId) : null;
+        return {
+          ...t,
+          ticket: ticket ? {
+            id: ticket.id,
+            subject: ticket.subject,
+            description: ticket.description,
+            priority: ticket.priority,
+            serviceName: service?.name || null,
+            categoryName: category?.name || null,
+            createdAt: ticket.createdAt,
+          } : null,
+          customer: customer ? {
+            fullName: customer.fullName,
+            email: customer.email,
+            username: customer.username,
+          } : null,
+          fromAdmin: { fullName: fromAdmin?.fullName || "Unknown" },
+        };
+      }));
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/support-admins", requirePermission("support_tickets"), async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const admins = allUsers
+        .filter(u => (u.role === "admin" || u.role === "master_admin") && u.id !== req.session.userId)
+        .map(u => ({ id: u.id, fullName: u.fullName }));
+      res.json(admins);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -658,6 +853,12 @@ export async function registerRoutes(
       const accessibleCategoryIds = await getAdminCategoryAccess(user.id);
       if (!accessibleCategoryIds.includes("*") && !accessibleCategoryIds.includes(ticket.categoryId)) {
         return res.status(403).json({ message: "No access to this ticket category" });
+      }
+    }
+    if (user.role === "admin" && ticket.claimedBy && ticket.claimedBy !== user.id) {
+      const pendingTransfer = await storage.getPendingTransferByTicketId(ticket.id);
+      if (!pendingTransfer || pendingTransfer.toAdminId !== user.id) {
+        return res.status(403).json({ message: "This ticket is claimed by another admin" });
       }
     }
     const messages = await storage.getTicketMessages(req.params.id);

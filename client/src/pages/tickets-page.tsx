@@ -307,6 +307,11 @@ export default function TicketsPage() {
                           {ticket.categoryId && categoryMap.get(ticket.categoryId) && (
                             <Badge variant="outline" className="text-xs"><Tag className="w-3 h-3 mr-1" />{categoryMap.get(ticket.categoryId)}</Badge>
                           )}
+                          {isAdmin && ticket.claimedBy && (
+                            <Badge variant="outline" className="text-xs" data-testid={`badge-claimed-${ticket.id}`}>
+                              {ticket.claimedBy === user?.id ? "Claimed by you" : `Claimed by ${(ticket as any).claimedByName || "admin"}`}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3" />

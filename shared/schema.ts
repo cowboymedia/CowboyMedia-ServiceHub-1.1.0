@@ -237,6 +237,16 @@ export const broadcastRecipients = pgTable("broadcast_recipients", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const ticketTransfers = pgTable("ticket_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull(),
+  fromAdminId: varchar("from_admin_id").notNull(),
+  toAdminId: varchar("to_admin_id").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true });
@@ -260,6 +270,7 @@ export const insertAdminChatParticipantSchema = createInsertSchema(adminChatPart
 export const insertAdminChatMessageSchema = createInsertSchema(adminChatMessages).omit({ id: true, createdAt: true });
 export const insertBroadcastMessageSchema = createInsertSchema(broadcastMessages).omit({ id: true, createdAt: true });
 export const insertBroadcastRecipientSchema = createInsertSchema(broadcastRecipients).omit({ id: true, createdAt: true, readAt: true });
+export const insertTicketTransferSchema = createInsertSchema(ticketTransfers).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -306,6 +317,8 @@ export type InsertBroadcastMessage = z.infer<typeof insertBroadcastMessageSchema
 export type BroadcastMessage = typeof broadcastMessages.$inferSelect;
 export type InsertBroadcastRecipient = z.infer<typeof insertBroadcastRecipientSchema>;
 export type BroadcastRecipient = typeof broadcastRecipients.$inferSelect;
+export type InsertTicketTransfer = z.infer<typeof insertTicketTransferSchema>;
+export type TicketTransfer = typeof ticketTransfers.$inferSelect;
 
 // Login schema
 export const loginSchema = z.object({

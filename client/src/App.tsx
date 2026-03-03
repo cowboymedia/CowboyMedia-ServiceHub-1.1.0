@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,7 +12,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity, Megaphone } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity, Megaphone, ArrowRightLeft } from "lucide-react";
+import { format } from "date-fns";
 import { subscribeToPush, isPushSupported, isSubscribedToPush } from "@/lib/push-notifications";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 import { PullToRefresh } from "@/components/pull-to-refresh";
@@ -460,8 +462,176 @@ function WelcomeDialog() {
   );
 }
 
+interface TransferData {
+  id: number;
+  ticketId: number;
+  fromAdminId: number;
+  toAdminId: number;
+  reason: string;
+  status: string;
+  createdAt: string;
+  ticket: {
+    id: number;
+    subject: string;
+    description: string;
+    priority: string;
+    serviceName?: string;
+    categoryName?: string;
+    createdAt: string;
+  };
+  customer: {
+    fullName: string;
+    email: string;
+    username: string;
+  };
+  fromAdmin: {
+    fullName: string;
+  };
+}
+
+function TicketTransferPopup() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const [queue, setQueue] = useState<TransferData[]>([]);
+  const [open, setOpen] = useState(true);
+
+  const { data: pendingTransfers } = useQuery<TransferData[]>({
+    queryKey: ["/api/ticket-transfers/pending"],
+    enabled: !!user,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (!pendingTransfers) return;
+    setQueue(prev => {
+      const existingIds = new Set(prev.map(t => t.id));
+      const newFromApi = pendingTransfers.filter(t => !existingIds.has(t.id));
+      const merged = [...prev];
+      for (const t of newFromApi) {
+        if (!merged.some(m => m.id === t.id)) merged.push(t);
+      }
+      return merged.filter(t => pendingTransfers.some(p => p.id === t.id));
+    });
+  }, [pendingTransfers]);
+
+  useEffect(() => {
+    if (!user) return;
+    let currentWs: WebSocket | null = null;
+    const handleWs = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "ticket_transfer" && data.transfer?.toAdminId === user.id) {
+          const newTransfer: TransferData = {
+            id: data.transfer.id,
+            ticketId: data.transfer.ticketId,
+            fromAdminId: data.transfer.fromAdminId,
+            toAdminId: data.transfer.toAdminId,
+            reason: data.transfer.reason,
+            status: data.transfer.status,
+            createdAt: data.transfer.createdAt,
+            ticket: data.ticket,
+            customer: data.customer,
+            fromAdmin: data.fromAdmin,
+          };
+          setQueue(prev => prev.some(t => t.id === newTransfer.id) ? prev : [...prev, newTransfer]);
+          setOpen(true);
+          queryClient.invalidateQueries({ queryKey: ["/api/ticket-transfers/pending"] });
+        }
+      } catch {}
+    };
+    const attachWs = () => {
+      const ws = (window as any).__ws;
+      if (ws && ws !== currentWs) {
+        if (currentWs) currentWs.removeEventListener("message", handleWs);
+        ws.addEventListener("message", handleWs);
+        currentWs = ws;
+      }
+    };
+    attachWs();
+    const interval = setInterval(attachWs, 2000);
+    return () => {
+      clearInterval(interval);
+      if (currentWs) currentWs.removeEventListener("message", handleWs);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (queue.length > 0) setOpen(true);
+  }, [queue.length]);
+
+  const current = queue[0];
+  if (!current || !open || !current.ticket || !current.customer || !current.fromAdmin) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="max-w-md" data-testid="dialog-ticket-transfer">
+        <DialogHeader>
+          <div className="flex justify-center mb-2">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <ArrowRightLeft className="w-7 h-7 text-primary" />
+            </div>
+          </div>
+          <DialogTitle className="text-center text-xl">Ticket Transfer Request</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-muted-foreground text-center">
+            From: <span className="font-semibold text-foreground">{current.fromAdmin.fullName}</span>
+          </p>
+          <div className="bg-muted rounded-md p-3 text-sm">
+            <span className="font-medium">Reason:</span> {current.reason}
+          </div>
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-foreground">Customer Info</p>
+            <p className="text-muted-foreground">Full Name: {current.customer.fullName}</p>
+            <p className="text-muted-foreground">Email: {current.customer.email}</p>
+            <p className="text-muted-foreground">Username: {current.customer.username}</p>
+          </div>
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-foreground">Ticket Info</p>
+            <p className="text-muted-foreground">Subject: {current.ticket.subject}</p>
+            <p className="text-muted-foreground">Description: {(current.ticket.description || "").length > 100 ? current.ticket.description.slice(0, 100) + "..." : current.ticket.description || "N/A"}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-muted-foreground">Priority:</span>
+              <Badge variant="outline" className="text-xs">{current.ticket.priority}</Badge>
+            </div>
+            {current.ticket.serviceName && (
+              <p className="text-muted-foreground">Service: {current.ticket.serviceName}</p>
+            )}
+            {current.ticket.categoryName && (
+              <p className="text-muted-foreground">Category: {current.ticket.categoryName}</p>
+            )}
+            <p className="text-muted-foreground">Created: {format(new Date(current.ticket.createdAt), "MMM d, yyyy h:mm a")}</p>
+          </div>
+        </div>
+        {queue.length > 1 && (
+          <p className="text-xs text-muted-foreground text-center">
+            ({queue.length - 1} more pending)
+          </p>
+        )}
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+          <Button
+            className="w-full"
+            data-testid="button-go-to-ticket"
+            onClick={() => {
+              setOpen(false);
+              setQueue(prev => prev.filter(t => t.id !== current.id));
+              setLocation(`/tickets/${current.ticketId}`);
+            }}
+          >
+            Go to Ticket
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
+            Dismiss
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AppContent() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!user) return;
@@ -527,6 +697,7 @@ function AppContent() {
   return (
     <>
       <BroadcastAlertPopup />
+      {isAdmin && <TicketTransferPopup />}
       <WelcomeDialog />
       <SetupReminderDialog />
       <PrivateMessagePopup />

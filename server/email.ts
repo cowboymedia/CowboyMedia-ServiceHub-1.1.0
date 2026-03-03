@@ -240,6 +240,32 @@ export const DEFAULT_EMAIL_TEMPLATES = [
     description: "Sent to all admins when a customer replies to a ticket",
   },
   {
+    templateKey: "admin_ticket_transfer",
+    name: "Ticket Transfer (Admin)",
+    subject: "Ticket Transfer: {ticket_subject}",
+    body: `<h2>Ticket Transfer Request</h2>
+<p>A support ticket has been transferred to you by {from_admin_name}.</p>
+<p><strong>Reason:</strong> {transfer_reason}</p>
+<p><strong>Ticket Subject:</strong> {ticket_subject}</p>
+<p><strong>Description:</strong> {ticket_description}</p>
+<p><strong>Priority:</strong> {ticket_priority}</p>
+<p><strong>Customer:</strong> {customer_name} ({customer_email})</p>
+<p>Please log in to the app to review and claim this ticket.</p>`,
+    availableVariables: ["from_admin_name", "transfer_reason", "ticket_subject", "ticket_description", "ticket_priority", "customer_name", "customer_email"],
+    description: "Sent to the target admin when a ticket is transferred to them",
+  },
+  {
+    templateKey: "customer_ticket_transferred",
+    name: "Ticket Transferred (Customer)",
+    subject: "Your Ticket Has Been Transferred: {ticket_subject}",
+    body: `<h2>Your Ticket Has Been Transferred</h2>
+<p>Your support ticket has been successfully transferred to <strong>{admin_name}</strong> who will be assisting you going forward.</p>
+<p><strong>Ticket:</strong> {ticket_subject}</p>
+<p>You will be notified when there is an update on your ticket.</p>`,
+    availableVariables: ["admin_name", "ticket_subject", "customer_name"],
+    description: "Sent to the customer when their ticket is transferred to a new admin",
+  },
+  {
     templateKey: "customer_service_status",
     name: "Service Status Update",
     subject: "Service Status Update: {service_name}",

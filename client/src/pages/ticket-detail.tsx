@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield, Zap } from "lucide-react";
+import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -23,10 +25,14 @@ type EnrichedTicketMessage = TicketMessage & { senderName?: string; senderRole?:
 export default function TicketDetail() {
   const params = useParams<{ id: string }>();
   const { user, isAdmin } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [message, setMessage] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferToAdminId, setTransferToAdminId] = useState("");
+  const [transferReason, setTransferReason] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +135,32 @@ export default function TicketDetail() {
     },
   });
 
+  const { data: supportAdmins } = useQuery<{ id: string; fullName: string }[]>({
+    queryKey: ["/api/admin/support-admins"],
+    enabled: transferDialogOpen,
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/tickets/${params.id}/transfer`, {
+        toAdminId: transferToAdminId,
+        reason: transferReason,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      toast({ title: "Ticket transferred successfully" });
+      setTransferDialogOpen(false);
+      setTransferToAdminId("");
+      setTransferReason("");
+      setLocation("/tickets");
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to transfer ticket", description: e.message, variant: "destructive" });
+    },
+  });
+
   const { data: categories } = useQuery<TicketCategory[]>({ queryKey: ["/api/ticket-categories"] });
   const serviceName = services?.find((s) => s.id === ticket?.serviceId)?.name;
   const categoryName = categories?.find((c) => c.id === ticket?.categoryId)?.name;
@@ -182,7 +214,7 @@ export default function TicketDetail() {
           {ticket.claimedBy && (
             <Badge variant="outline" className="text-xs gap-1" data-testid="badge-claimed-by">
               <Shield className="w-3 h-3" />
-              Claimed{isAdmin && customerInfo ? ` by ${ticket.claimedBy === user?.id ? "you" : "admin"}` : ""}
+              {isAdmin ? (ticket.claimedBy === user?.id ? "Claimed by you" : `Claimed by ${(ticket as any).claimedByName || "admin"}`) : "Claimed"}
             </Badge>
           )}
           {isAdmin && (
@@ -262,6 +294,48 @@ export default function TicketDetail() {
                     </div>
                   </div>
                 )}
+              </DialogContent>
+            </Dialog>
+          )}
+          {isAdmin && ticket.status === "open" && ticket.claimedBy === user?.id && (
+            <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-transfer-ticket">
+                  <ArrowRightLeft className="w-4 h-4 mr-1" /> Transfer
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Transfer Ticket</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Select value={transferToAdminId} onValueChange={setTransferToAdminId}>
+                    <SelectTrigger data-testid="select-transfer-admin">
+                      <SelectValue placeholder="Select an admin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {supportAdmins?.filter((a) => a.id !== user?.id).map((admin) => (
+                        <SelectItem key={admin.id} value={admin.id}>
+                          {admin.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    placeholder="Reason for transfer..."
+                    value={transferReason}
+                    onChange={(e) => setTransferReason(e.target.value)}
+                    data-testid="input-transfer-reason"
+                  />
+                  <Button
+                    onClick={() => transferMutation.mutate()}
+                    disabled={!transferToAdminId || !transferReason.trim() || transferMutation.isPending}
+                    className="w-full"
+                    data-testid="button-submit-transfer"
+                  >
+                    {transferMutation.isPending ? "Transferring..." : "Transfer Ticket"}
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
           )}

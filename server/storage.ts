@@ -21,7 +21,8 @@ import {
   type AdminChatMessage, type InsertAdminChatMessage,
   type BroadcastMessage, type InsertBroadcastMessage,
   type BroadcastRecipient, type InsertBroadcastRecipient,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients,
+  type TicketTransfer, type InsertTicketTransfer,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -145,6 +146,11 @@ export interface IStorage {
   createBroadcastMessage(data: InsertBroadcastMessage, recipientIds: string[]): Promise<BroadcastMessage>;
   getUnreadBroadcasts(userId: string): Promise<BroadcastMessage[]>;
   markBroadcastRead(broadcastId: string, userId: string): Promise<void>;
+
+  createTicketTransfer(data: InsertTicketTransfer): Promise<TicketTransfer>;
+  getPendingTransfersForAdmin(adminId: string): Promise<TicketTransfer[]>;
+  getPendingTransferByTicketId(ticketId: string): Promise<TicketTransfer | undefined>;
+  updateTicketTransfer(id: string, data: Partial<TicketTransfer>): Promise<TicketTransfer | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -702,6 +708,28 @@ export class DatabaseStorage implements IStorage {
         eq(broadcastRecipients.broadcastId, broadcastId),
         eq(broadcastRecipients.recipientId, userId)
       ));
+  }
+
+  async createTicketTransfer(data: InsertTicketTransfer): Promise<TicketTransfer> {
+    const [transfer] = await db.insert(ticketTransfers).values(data).returning();
+    return transfer;
+  }
+
+  async getPendingTransfersForAdmin(adminId: string): Promise<TicketTransfer[]> {
+    return db.select().from(ticketTransfers)
+      .where(and(eq(ticketTransfers.toAdminId, adminId), eq(ticketTransfers.status, "pending")))
+      .orderBy(desc(ticketTransfers.createdAt));
+  }
+
+  async getPendingTransferByTicketId(ticketId: string): Promise<TicketTransfer | undefined> {
+    const [transfer] = await db.select().from(ticketTransfers)
+      .where(and(eq(ticketTransfers.ticketId, ticketId), eq(ticketTransfers.status, "pending")));
+    return transfer;
+  }
+
+  async updateTicketTransfer(id: string, data: Partial<TicketTransfer>): Promise<TicketTransfer | undefined> {
+    const [transfer] = await db.update(ticketTransfers).set(data).where(eq(ticketTransfers.id, id)).returning();
+    return transfer;
   }
 }
 
