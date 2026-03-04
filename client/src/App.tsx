@@ -3,6 +3,7 @@ import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider, useQuery, useMutation } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -492,6 +493,7 @@ interface TransferData {
 function TicketTransferPopup() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [queue, setQueue] = useState<TransferData[]>([]);
   const [open, setOpen] = useState(true);
 
@@ -560,6 +562,22 @@ function TicketTransferPopup() {
     if (queue.length > 0) setOpen(true);
   }, [queue.length]);
 
+  const claimMutation = useMutation({
+    mutationFn: async (ticketId: string) => {
+      await apiRequest("POST", `/api/tickets/${ticketId}/claim`);
+    },
+    onSuccess: (_data, ticketId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-transfers/pending"] });
+      setQueue(prev => prev.filter(t => t.ticketId !== ticketId));
+      setOpen(false);
+      setLocation(`/tickets/${ticketId}`);
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to claim ticket", description: e.message, variant: "destructive" });
+    },
+  });
+
   const current = queue[0];
   if (!current || !open || !current.ticket || !current.customer || !current.fromAdmin) return null;
 
@@ -612,16 +630,25 @@ function TicketTransferPopup() {
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
           <Button
             className="w-full"
-            data-testid="button-go-to-ticket"
+            data-testid="button-accept-claim"
+            disabled={claimMutation.isPending}
+            onClick={() => claimMutation.mutate(current.ticketId)}
+          >
+            {claimMutation.isPending ? "Claiming..." : "Accept & Claim"}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            data-testid="button-view-ticket"
             onClick={() => {
               setOpen(false);
               setQueue(prev => prev.filter(t => t.id !== current.id));
               setLocation(`/tickets/${current.ticketId}`);
             }}
           >
-            Go to Ticket
+            View Ticket
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
+          <Button variant="ghost" className="w-full" onClick={() => setOpen(false)}>
             Dismiss
           </Button>
         </DialogFooter>

@@ -14,13 +14,45 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Image, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Ticket, TicketMessage, Service, User, QuickResponse, TicketCategory } from "@shared/schema";
 
 type EnrichedTicketMessage = TicketMessage & { senderName?: string; senderRole?: string };
+
+function getFileType(url: string): "image" | "video" | "other" {
+  const ext = url.split(".").pop()?.toLowerCase() || "";
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
+  if (["mp4", "webm", "mov", "avi", "mkv", "m4v"].includes(ext)) return "video";
+  return "other";
+}
+
+function getFileName(url: string): string {
+  return url.split("/").pop() || "file";
+}
+
+function FileAttachment({ url, className }: { url: string; className?: string }) {
+  const type = getFileType(url);
+  if (type === "image") {
+    return <ClickableImage src={url} alt="Attachment" className={className || "mt-2 max-w-full h-32 object-cover rounded-md"} />;
+  }
+  if (type === "video") {
+    return (
+      <video controls preload="metadata" className="mt-2 max-w-full max-h-48 rounded-md" data-testid="video-attachment">
+        <source src={url} />
+      </video>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" download className="mt-2 flex items-center gap-2 p-2 bg-background/50 rounded-md hover:bg-background/80 transition-colors" data-testid="file-attachment">
+      <FileText className="w-4 h-4 flex-shrink-0" />
+      <span className="text-xs underline break-all">{getFileName(url)}</span>
+      <Download className="w-3 h-3 flex-shrink-0 ml-auto" />
+    </a>
+  );
+}
 
 export default function TicketDetail() {
   const params = useParams<{ id: string }>();
@@ -187,7 +219,7 @@ export default function TicketDetail() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] max-h-[calc(100vh-4rem)]">
       <div className="flex items-center justify-between gap-3 pb-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Link href="/tickets">
@@ -352,14 +384,14 @@ export default function TicketDetail() {
           <div className="p-4 border-b bg-card">
             <p className="text-sm" data-testid="text-ticket-description">{ticket.description}</p>
             {ticket.imageUrl && (
-              <ClickableImage src={ticket.imageUrl} alt="Ticket attachment" className="mt-2 max-w-xs h-32 object-cover rounded-md" />
+              <FileAttachment url={ticket.imageUrl} className="mt-2 max-w-xs h-32 object-cover rounded-md" />
             )}
             <p className="text-xs text-muted-foreground mt-2">
               Opened {format(new Date(ticket.createdAt), "MMM d, yyyy 'at' h:mm a")}
             </p>
           </div>
 
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-4 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
             {messagesLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
@@ -386,10 +418,10 @@ export default function TicketDetail() {
                             <p className="text-[10px] text-muted-foreground">CowboyMedia Support</p>
                           )}
                         </div>
-                        <div className={`rounded-md p-3 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-accent"}`}>
+                        <div className={`rounded-md p-3 text-sm whitespace-pre-wrap break-words overflow-hidden ${isMe ? "bg-primary text-primary-foreground" : "bg-accent"}`}>
                           {msg.message}
                           {msg.imageUrl && (
-                            <ClickableImage src={msg.imageUrl} alt="Attachment" className="mt-2 max-w-full h-32 object-cover rounded-md" />
+                            <FileAttachment url={msg.imageUrl} />
                           )}
                         </div>
                         <p className={`text-xs text-muted-foreground ${isMe ? "text-right" : ""}`}>
@@ -451,6 +483,9 @@ export default function TicketDetail() {
             <div className="p-3 border-t">
               {imageFile && (
                 <div className="flex items-center gap-2 mb-2 p-2 bg-accent rounded-md">
+                  {imageFile.type.startsWith("video/") ? <Film className="w-4 h-4 flex-shrink-0" /> :
+                   imageFile.type.startsWith("image/") ? <Paperclip className="w-4 h-4 flex-shrink-0" /> :
+                   <FileText className="w-4 h-4 flex-shrink-0" />}
                   <span className="text-xs truncate flex-1">{imageFile.name}</span>
                   <Button size="icon" variant="ghost" onClick={() => setImageFile(null)} data-testid="button-remove-image">
                     <X className="w-3 h-3" />
@@ -478,7 +513,7 @@ export default function TicketDetail() {
                   onClick={() => fileInputRef.current?.click()}
                   data-testid="button-attach-image"
                 >
-                  <Image className="w-4 h-4" />
+                  <Paperclip className="w-4 h-4" />
                 </Button>
                 {isAdmin && quickResponses && quickResponses.length > 0 && (
                   <DropdownMenu>
