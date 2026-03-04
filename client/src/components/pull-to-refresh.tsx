@@ -4,9 +4,10 @@ import { RefreshCw } from "lucide-react";
 interface PullToRefreshProps {
   children: React.ReactNode;
   className?: string;
+  disabled?: boolean;
 }
 
-export function PullToRefresh({ children, className }: PullToRefreshProps) {
+export function PullToRefresh({ children, className, disabled }: PullToRefreshProps) {
   const [pulling, setPulling] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -64,6 +65,7 @@ export function PullToRefresh({ children, className }: PullToRefreshProps) {
   }, [pullDistance, refreshing]);
 
   useEffect(() => {
+    if (disabled) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -76,7 +78,11 @@ export function PullToRefresh({ children, className }: PullToRefreshProps) {
       container.removeEventListener("touchmove", handleTouchMove);
       container.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [disabled, handleTouchStart, handleTouchMove, handleTouchEnd]);
+
+  if (disabled) {
+    return <div className={className}>{children}</div>;
+  }
 
   const rotation = Math.min((pullDistance / threshold) * 360, 360);
   const opacity = Math.min(pullDistance / (threshold * 0.5), 1);

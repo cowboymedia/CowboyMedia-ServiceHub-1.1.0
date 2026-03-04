@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -257,6 +257,17 @@ export default function TicketDetail() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id] });
+              queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
+            }}
+            data-testid="button-refresh-ticket"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </Button>
           <div>
             <h2 className="font-semibold text-lg" data-testid="text-ticket-subject">{ticket.subject}</h2>
             <div className="flex items-center gap-2 flex-wrap">
@@ -465,33 +476,6 @@ export default function TicketDetail() {
               </div>
             )}
           </div>
-
-          {ticket.status === "open" && !isAdmin && messages && messages.length > 0 && messages[messages.length - 1].senderId !== user?.id && (
-            <div className="p-3 border-t bg-accent/50">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-sm font-medium" data-testid="text-resolution-prompt">Has your issue been resolved?</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => closeMutation.mutate()}
-                    disabled={closeMutation.isPending}
-                    data-testid="button-yes-close-ticket"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" /> Yes, close ticket
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => messageInputRef.current?.focus()}
-                    data-testid="button-reply-back"
-                  >
-                    Reply back
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {ticket.status === "open" && isAdmin && !ticket.claimedBy && (
             <div className="p-3 border-t bg-accent/50">
