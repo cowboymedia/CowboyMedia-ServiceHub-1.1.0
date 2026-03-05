@@ -17,7 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { AlertTriangle, Film, Bug, CheckCircle, Clock, Paperclip, X } from "lucide-react";
 import { format } from "date-fns";
-import { ImageLightbox } from "@/components/image-lightbox";
+import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
+import { Download } from "lucide-react";
 import type { Service, ReportRequest } from "@shared/schema";
 
 type EnrichedReportRequest = ReportRequest & { serviceName?: string };
@@ -366,9 +367,21 @@ export default function ReportRequestPage() {
                     {sub.imageUrl && (
                       <div className="mt-2">
                         {sub.imageUrl.match(/\.(mp4|webm|mov|avi)$/i) ? (
-                          <video src={sub.imageUrl} controls className="max-h-32 rounded-md" data-testid={`video-attachment-${sub.id}`} />
+                          <div>
+                            <ClickableVideo src={sub.imageUrl} className="max-h-32" />
+                            <a href={sub.imageUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-download-video-${sub.id}`}>
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         ) : (
-                          <ImageLightbox src={sub.imageUrl} alt="Attachment" className="max-h-32 rounded-md" />
+                          <div>
+                            <ClickableImage src={sub.imageUrl} alt="Attachment" className="max-h-32 rounded-md" />
+                            <a href={sub.imageUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-download-image-${sub.id}`}>
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         )}
                       </div>
                     )}

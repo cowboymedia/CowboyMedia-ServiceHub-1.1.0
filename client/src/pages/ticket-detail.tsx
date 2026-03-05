@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw } from "lucide-react";
-import { ClickableImage } from "@/components/image-lightbox";
+import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Ticket, TicketMessage, Service, User, QuickResponse, TicketCategory } from "@shared/schema";
@@ -35,13 +35,25 @@ function getFileName(url: string): string {
 function FileAttachment({ url, className }: { url: string; className?: string }) {
   const type = getFileType(url);
   if (type === "image") {
-    return <ClickableImage src={url} alt="Attachment" className={className || "mt-2 max-w-full h-32 object-cover rounded-md"} />;
+    return (
+      <div className="mt-2">
+        <ClickableImage src={url} alt="Attachment" className={className || "max-w-full h-32 object-cover rounded-md"} />
+        <a href={url} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-download-image">
+          <Download className="w-3 h-3" />
+          <span>Download</span>
+        </a>
+      </div>
+    );
   }
   if (type === "video") {
     return (
-      <video controls preload="metadata" className="mt-2 max-w-full max-h-48 rounded-md" data-testid="video-attachment">
-        <source src={url} />
-      </video>
+      <div className="mt-2">
+        <ClickableVideo src={url} className="max-w-full max-h-48" />
+        <a href={url} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-download-video">
+          <Download className="w-3 h-3" />
+          <span>Download</span>
+        </a>
+      </div>
     );
   }
   return (
@@ -360,7 +372,7 @@ export default function TicketDetail() {
                         {customerInfo.ticket.imageUrl && (
                           <div className="flex justify-between gap-2">
                             <span className="text-sm text-muted-foreground">Attachment</span>
-                            <ClickableImage src={customerInfo.ticket.imageUrl} alt="Ticket attachment" className="max-w-[120px] h-20 object-cover rounded-md" />
+                            <FileAttachment url={customerInfo.ticket.imageUrl} className="max-w-[120px] h-20 object-cover rounded-md" />
                           </div>
                         )}
                       </div>

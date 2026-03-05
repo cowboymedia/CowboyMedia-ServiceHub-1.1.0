@@ -24,7 +24,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy } from "lucide-react";
 import { format } from "date-fns";
-import { ImageLightbox } from "@/components/image-lightbox";
+import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
+import { Download } from "lucide-react";
 import type { User, Service, ServiceAlert, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory } from "@shared/schema";
 
 const createServiceSchema = z.object({
@@ -1538,9 +1539,21 @@ function ReportsRequestsTab({ canManage = true }: { canManage?: boolean }) {
                     {rr.imageUrl && (
                       <div className="mt-2">
                         {rr.imageUrl.match(/\.(mp4|webm|mov|avi)$/i) ? (
-                          <video src={rr.imageUrl} controls className="max-h-32 rounded-md" data-testid={`video-attachment-${rr.id}`} />
+                          <div>
+                            <ClickableVideo src={rr.imageUrl} className="max-h-32" />
+                            <a href={rr.imageUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-download-video-${rr.id}`}>
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         ) : (
-                          <ImageLightbox src={rr.imageUrl} alt="Attachment" className="max-h-32 rounded-md" />
+                          <div>
+                            <ClickableImage src={rr.imageUrl} alt="Attachment" className="max-h-32 rounded-md" />
+                            <a href={rr.imageUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-download-image-${rr.id}`}>
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         )}
                       </div>
                     )}
@@ -2757,13 +2770,29 @@ function AdminChatTab() {
                         {!isMe && <p className="text-xs font-medium mb-1">{msg.senderName}</p>}
                         {msg.message && <p className="text-sm whitespace-pre-wrap overflow-hidden" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{msg.message}</p>}
                         {msg.fileUrl && msg.fileType?.startsWith("image/") && (
-                          <ImageLightbox src={msg.fileUrl} alt="attachment" className="max-w-full max-h-48 rounded mt-1" />
+                          <div className="mt-1">
+                            <ClickableImage src={msg.fileUrl} alt="attachment" className="max-w-full max-h-48 rounded" />
+                            <a href={msg.fileUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs opacity-70 hover:opacity-100 transition-opacity" data-testid="link-download-image">
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         )}
                         {msg.fileUrl && msg.fileType?.startsWith("video/") && (
-                          <video src={msg.fileUrl} controls className="max-w-full max-h-48 rounded mt-1" />
+                          <div className="mt-1">
+                            <ClickableVideo src={msg.fileUrl} className="max-w-full max-h-48" />
+                            <a href={msg.fileUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs opacity-70 hover:opacity-100 transition-opacity" data-testid="link-download-video">
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </a>
+                          </div>
                         )}
                         {msg.fileUrl && !msg.fileType?.startsWith("image/") && !msg.fileType?.startsWith("video/") && (
-                          <a href={msg.fileUrl} target="_blank" rel="noopener" className="text-xs underline mt-1 block">📎 Download file</a>
+                          <a href={msg.fileUrl} download target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-2 p-1.5 rounded hover:bg-background/20 transition-colors" data-testid="file-attachment">
+                            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="text-xs underline break-all">{msg.fileName || "Download file"}</span>
+                            <Download className="w-3 h-3 flex-shrink-0 ml-auto" />
+                          </a>
                         )}
                         <p className="text-[10px] opacity-60 mt-1">{format(new Date(msg.createdAt), "h:mm a")}</p>
                       </div>
