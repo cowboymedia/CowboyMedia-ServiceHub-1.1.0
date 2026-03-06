@@ -110,6 +110,7 @@ export interface IStorage {
 
   getAllServiceUpdates(): Promise<ServiceUpdate[]>;
   createServiceUpdate(update: InsertServiceUpdate): Promise<ServiceUpdate>;
+  updateServiceUpdate(id: string, data: Partial<{ title: string; description: string; matureContent: boolean }>): Promise<ServiceUpdate | undefined>;
   deleteServiceUpdate(id: string): Promise<void>;
   hideServiceUpdate(userId: string, serviceUpdateId: string): Promise<void>;
   getHiddenServiceUpdateIds(userId: string): Promise<string[]>;
@@ -478,6 +479,11 @@ export class DatabaseStorage implements IStorage {
   async createServiceUpdate(update: InsertServiceUpdate): Promise<ServiceUpdate> {
     const [created] = await db.insert(serviceUpdates).values(update).returning();
     return created;
+  }
+
+  async updateServiceUpdate(id: string, data: Partial<{ title: string; description: string; matureContent: boolean }>): Promise<ServiceUpdate | undefined> {
+    const [updated] = await db.update(serviceUpdates).set(data).where(eq(serviceUpdates.id, id)).returning();
+    return updated;
   }
 
   async deleteServiceUpdate(id: string): Promise<void> {

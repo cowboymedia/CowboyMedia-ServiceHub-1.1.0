@@ -1656,6 +1656,10 @@ function ReportsRequestsTab({ canManage = true }: { canManage?: boolean }) {
 function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [editingUpdate, setEditingUpdate] = useState<ServiceUpdate | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editMatureContent, setEditMatureContent] = useState(false);
 
   const { data: updates, isLoading } = useQuery<ServiceUpdate[]>({
     queryKey: ["/api/service-updates"],
@@ -1692,6 +1696,20 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
     },
   });
 
+  const editMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { title: string; description: string; matureContent: boolean } }) => {
+      await apiRequest("PATCH", `/api/admin/service-updates/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/service-updates"] });
+      toast({ title: "Service update updated" });
+      setEditingUpdate(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/service-updates/${id}`);
@@ -1701,6 +1719,13 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
       toast({ title: "Service update deleted" });
     },
   });
+
+  const openEditDialog = (update: ServiceUpdate) => {
+    setEditTitle(update.title);
+    setEditDescription(update.description);
+    setEditMatureContent(update.matureContent);
+    setEditingUpdate(update);
+  };
 
   const getServiceName = (serviceId: string) => {
     return services?.find(s => s.id === serviceId)?.name || "Unknown";
@@ -1810,23 +1835,30 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
                       </span>
                     </div>
                   </div>
-                  {canManage && <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" data-testid={`button-admin-delete-update-${update.id}`}>
-                        <Trash2 className="w-4 h-4" />
+                  {canManage && (
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" onClick={() => openEditDialog(update)} data-testid={`button-admin-edit-update-${update.id}`}>
+                        <Edit className="w-4 h-4" />
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Service Update?</AlertDialogTitle>
-                        <AlertDialogDescription>This will permanently remove this service update.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteMutation.mutate(update.id)}>Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" data-testid={`button-admin-delete-update-${update.id}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Service Update?</AlertDialogTitle>
+                            <AlertDialogDescription>This will permanently remove this service update.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(update.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1836,6 +1868,56 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
           ))}
         </div>
       )}
+
+      <Dialog open={!!editingUpdate} onOpenChange={(open) => { if (!open) setEditingUpdate(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Service Update</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Service</Label>
+              <p className="text-sm text-muted-foreground mt-1">{editingUpdate ? getServiceName(editingUpdate.serviceId) : ""}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-update-title">Title</Label>
+              <Input id="edit-update-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} data-testid="input-edit-update-title" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-update-description">Description</Label>
+              <Textarea id="edit-update-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} data-testid="input-edit-update-description" />
+            </div>
+            <div className="flex items-center justify-between border rounded-md px-3 py-2">
+              <div>
+                <Label className="text-sm font-medium">Mature Content</Label>
+                <p className="text-xs text-muted-foreground">Warn customers before viewing this update</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={editMatureContent}
+                onClick={() => setEditMatureContent(!editMatureContent)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${editMatureContent ? 'bg-destructive' : 'bg-input'}`}
+                data-testid="switch-edit-mature-content"
+              >
+                <span className={`pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${editMatureContent ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            <Button
+              className="w-full"
+              disabled={editMutation.isPending || !editTitle.trim() || !editDescription.trim()}
+              onClick={() => {
+                if (editingUpdate) {
+                  editMutation.mutate({ id: editingUpdate.id, data: { title: editTitle, description: editDescription, matureContent: editMatureContent } });
+                }
+              }}
+              data-testid="button-save-edit-update"
+            >
+              {editMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

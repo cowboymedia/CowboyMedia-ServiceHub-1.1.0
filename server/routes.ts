@@ -1445,6 +1445,21 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
     }
   });
 
+  app.patch("/api/admin/service-updates/:id", requirePermission("service_updates.view", "service_updates.manage"), async (req, res) => {
+    try {
+      const { title, description, matureContent } = req.body;
+      const data: Partial<{ title: string; description: string; matureContent: boolean }> = {};
+      if (title !== undefined) data.title = title;
+      if (description !== undefined) data.description = description;
+      if (matureContent !== undefined) data.matureContent = matureContent;
+      const updated = await storage.updateServiceUpdate(req.params.id, data);
+      if (!updated) return res.status(404).json({ message: "Service update not found" });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.delete("/api/service-updates/:id", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
