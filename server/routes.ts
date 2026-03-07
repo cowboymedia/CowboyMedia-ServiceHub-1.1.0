@@ -667,10 +667,16 @@ export async function registerRoutes(
 ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}" style="color:#3b82f6;font-size:12px;">View Attachment</a></p>` : ""}
 </div>`;
             }).join("");
+            const isCustomerClose = !(user.role === "admin" || user.role === "master_admin");
+            const resolutionLabel = isCustomerClose ? "Customer's Closing Note" : "Resolution Summary";
+            const resolutionBg = isCustomerClose ? "#eff6ff" : "#f0fdf4";
+            const resolutionBorder = isCustomerClose ? "#bfdbfe" : "#bbf7d0";
+            const resolutionHeadColor = isCustomerClose ? "#1e40af" : "#166534";
+            const resolutionTextColor = isCustomerClose ? "#1d4ed8" : "#15803d";
             const resolutionHtml = resolutionNote
-              ? `<div style="margin:16px 0;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
-<h3 style="margin:0 0 8px 0;font-size:15px;color:#166534;">Resolution Summary</h3>
-<p style="margin:0;font-size:14px;color:#15803d;">${escapeHtml(resolutionNote).replace(/\n/g, "<br/>")}</p>
+              ? `<div style="margin:16px 0;padding:12px;background:${resolutionBg};border:1px solid ${resolutionBorder};border-radius:6px;">
+<h3 style="margin:0 0 8px 0;font-size:15px;color:${resolutionHeadColor};">${resolutionLabel}</h3>
+<p style="margin:0;font-size:14px;color:${resolutionTextColor};">${escapeHtml(resolutionNote).replace(/\n/g, "<br/>")}</p>
 </div>`
               : "";
             sendTemplatedEmail(customer.email, "ticket_transcript", {

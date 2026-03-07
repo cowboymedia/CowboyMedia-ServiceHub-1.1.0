@@ -430,9 +430,14 @@ export default function TicketDetail() {
                     <p className="text-sm text-muted-foreground text-center py-8">No previous tickets from this customer</p>
                   ) : (
                     previousTickets.map((pt) => (
-                      <div key={pt.id} className="p-3 rounded-md border space-y-2" data-testid={`previous-ticket-${pt.id}`}>
+                      <div
+                        key={pt.id}
+                        className="p-3 rounded-md border space-y-2 cursor-pointer transition-colors"
+                        data-testid={`previous-ticket-${pt.id}`}
+                        onClick={() => { setHistoryOpen(false); setLocation(`/tickets/${pt.id}`); }}
+                      >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{pt.subject}</p>
+                          <p className="text-sm font-medium underline underline-offset-2" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{pt.subject}</p>
                           <Badge variant={pt.status === "closed" ? "secondary" : "default"} className="text-xs capitalize flex-shrink-0">{pt.status}</Badge>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
@@ -567,7 +572,7 @@ export default function TicketDetail() {
           <div className="p-4 border-b bg-card">
             <p className="text-sm" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} data-testid="text-ticket-description">{ticket.description}</p>
             {ticket.imageUrl && (
-              <FileAttachment url={ticket.imageUrl} className="mt-2 max-w-xs h-32 object-cover rounded-md" />
+              <ClickableImage src={ticket.imageUrl} alt="Ticket attachment" className="mt-2 max-w-[100px] max-h-16 object-cover rounded-md cursor-pointer" />
             )}
             <p className="text-xs text-muted-foreground mt-2">
               Opened {format(new Date(ticket.createdAt), "MMM d, yyyy 'at' h:mm a")}
