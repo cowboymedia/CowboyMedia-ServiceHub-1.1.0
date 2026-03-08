@@ -22,7 +22,7 @@ import { z } from "zod";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { Download } from "lucide-react";
@@ -695,6 +695,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
   const [editUpdateImageFile, setEditUpdateImageFile] = useState<File | null>(null);
   const [editUpdateRemoveImage, setEditUpdateRemoveImage] = useState(false);
   const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [alertsListExpanded, setAlertsListExpanded] = useState(false);
 
   const { data: alerts, isLoading } = useQuery<ServiceAlert[]>({
     queryKey: ["/api/alerts"],
@@ -839,7 +840,10 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="font-semibold">Alerts ({alerts?.length || 0})</h3>
+        <button className="flex items-center gap-1 font-semibold cursor-pointer" onClick={() => setAlertsListExpanded(!alertsListExpanded)} data-testid="button-toggle-alerts-list">
+          {alertsListExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          Alerts ({alerts?.length || 0})
+        </button>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setAlertImageFile(null); }}>
           {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-create-alert"><Plus className="w-4 h-4 mr-1" /> Create Alert</Button>
@@ -1089,7 +1093,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
         </DialogContent>
       </Dialog>
 
-      {isLoading ? <Skeleton className="h-40" /> : (
+      {isLoading ? <Skeleton className="h-40" /> : alertsListExpanded ? (
         <div className="space-y-3">
           {alerts?.map((alert) => (
             <Card key={alert.id} data-testid={`card-admin-alert-${alert.id}`}>
@@ -1148,7 +1152,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
             </Card>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1907,6 +1911,7 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editMatureContent, setEditMatureContent] = useState(false);
+  const [updatesListExpanded, setUpdatesListExpanded] = useState(false);
 
   const { data: updates, isLoading } = useQuery<ServiceUpdate[]>({
     queryKey: ["/api/service-updates"],
@@ -1983,7 +1988,10 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold" data-testid="text-admin-service-updates-title">Service Updates</h2>
+        <button className="flex items-center gap-1 text-xl font-semibold cursor-pointer" onClick={() => setUpdatesListExpanded(!updatesListExpanded)} data-testid="button-toggle-updates-list">
+          {updatesListExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          Service Updates ({updates?.length || 0})
+        </button>
         <Dialog open={open} onOpenChange={setOpen}>
           {canManage && <DialogTrigger asChild>
             <Button data-testid="button-add-service-update"><Plus className="w-4 h-4 mr-2" />Add Service Update</Button>
@@ -2059,15 +2067,15 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
         </Dialog>
       </div>
 
-      {!updates || updates.length === 0 ? (
+      {updatesListExpanded && (!updates || updates.length === 0) ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-admin-updates">
             No service updates yet
           </CardContent>
         </Card>
-      ) : (
+      ) : updatesListExpanded ? (
         <div className="space-y-3">
-          {updates.map((update) => (
+          {updates?.map((update) => (
             <Card key={update.id} data-testid={`card-admin-update-${update.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
@@ -2114,7 +2122,7 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
             </Card>
           ))}
         </div>
-      )}
+      ) : null}
 
       <Dialog open={!!editingUpdate} onOpenChange={(open) => { if (!open) setEditingUpdate(null); }}>
         <DialogContent>
