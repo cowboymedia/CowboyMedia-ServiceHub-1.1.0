@@ -216,20 +216,31 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }) {
   try {
     const subs = await storage.getPushSubscriptionsByUser(userId);
+    if (subs.length === 0) {
+      console.log(`[Push] User ${userId} — no push subscriptions registered`);
+      return;
+    }
+    let sent = 0, failed = 0;
     for (const sub of subs) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify(payload)
         );
+        sent++;
       } catch (err: any) {
         if (err.statusCode === 404 || err.statusCode === 410) {
           await storage.deletePushSubscription(sub.endpoint);
+          console.log(`[Push] User ${userId} — removed stale subscription (${err.statusCode})`);
+        } else {
+          console.error(`[Push] User ${userId} — push failed (${err.statusCode}):`, err.message);
         }
+        failed++;
       }
     }
+    console.log(`[Push] User ${userId} — ${sent} sent, ${failed} failed out of ${subs.length} subscription(s)`);
   } catch (e) {
-    console.error("Push notification error:", e);
+    console.error(`[Push] User ${userId} — error:`, e);
   }
 }
 
@@ -1304,9 +1315,10 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       broadcast({ type: "service_updated", serviceId: alert.serviceId });
       const allUsers = await storage.getAllUsers();
       const subscribers = allUsers.filter(u => u.subscribedServices?.includes(alert.serviceId) && u.id !== req.session.userId);
+      console.log(`[Alert Create] Alert ${alert.id} — sendPush=${parsedSendPush}, ${subscribers.length} subscriber(s)`);
       for (const u of subscribers) {
         if (parsedSendPush) {
-          sendPushToUser(u.id, {
+          await sendPushToUser(u.id, {
             title: `${serviceName}: ${impactLabel}`,
             body: alert.title,
             url: `/alerts/${alert.id}`,
@@ -1391,16 +1403,17 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
             : `${serviceName} Update: ${alert.title}`;
         const allUsers = await storage.getAllUsers();
         const subscribers = allUsers.filter(u => u.subscribedServices?.includes(alert.serviceId) && u.id !== req.session.userId);
+        console.log(`[Alert Update] Alert ${req.params.id} — status=${updateData.status}, sendPush=${parsedSendPush}, ${subscribers.length} subscriber(s)`);
         for (const u of subscribers) {
-          if (parsedSendPush) {
-            sendPushToUser(u.id, {
+          if (parsedSendPush || isResolved) {
+            await sendPushToUser(u.id, {
               title: pushTitle,
               body: updateData.message,
               url: `/alerts/${req.params.id}`,
               tag: `alert-${req.params.id}`,
             });
           }
-          if (parsedSendEmail && u.email && u.emailNotifications !== false) {
+          if ((parsedSendEmail || isResolved) && u.email && u.emailNotifications !== false) {
             sendTemplatedEmail(u.email, "customer_service_alert", {
               alert_title: emailTitle,
               alert_description: updateData.message,
@@ -1454,8 +1467,9 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const serviceName = service?.name || "Service";
       const allUsers = await storage.getAllUsers();
       const subscribers = allUsers.filter(u => u.subscribedServices?.includes(updated.serviceId) && u.id !== req.session.userId);
+      console.log(`[Alert Resolve] Alert ${req.params.id} — ${subscribers.length} subscriber(s) to notify`);
       for (const u of subscribers) {
-        sendPushToUser(u.id, {
+        await sendPushToUser(u.id, {
           title: `${serviceName}: Resolved — Now Operational`,
           body: `${updated.title} has been resolved. Service is back to operational.`,
           url: `/alerts/${req.params.id}`,
