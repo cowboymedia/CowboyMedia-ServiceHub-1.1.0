@@ -269,7 +269,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
       </Dialog>
 
       <Dialog open={!!detailUser} onOpenChange={(open) => { if (!open) setDetailUser(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-user-detail">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[85vh] overflow-y-auto" data-testid="dialog-user-detail">
           <DialogHeader>
             <DialogTitle data-testid="text-user-detail-title">
               {detailUser?.fullName}
@@ -385,12 +385,12 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
                 </p>
               </div>
 
-              <div className="flex gap-2 justify-between pt-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:justify-between pt-2">
                 <div className="flex gap-1">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-1"
+                    className="gap-1 text-xs sm:text-sm"
                     onClick={() => {
                       setDetailUser(null);
                       setSelectedUser(detailUser);
@@ -399,11 +399,11 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
                     data-testid="button-detail-reset-password"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Reset Password
+                    Reset
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="gap-1 text-destructive" data-testid="button-detail-delete">
+                      <Button size="sm" variant="outline" className="gap-1 text-destructive text-xs sm:text-sm" data-testid="button-detail-delete">
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete
                       </Button>
@@ -427,7 +427,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 justify-end">
                   <Button variant="outline" size="sm" onClick={() => setDetailUser(null)} data-testid="button-detail-cancel">
                     Cancel
                   </Button>
@@ -437,7 +437,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
                     onClick={handleSaveUser}
                     data-testid="button-detail-save"
                   >
-                    {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                    {updateUserMutation.isPending ? "Saving..." : "Save"}
                   </Button>
                 </div>
               </div>
