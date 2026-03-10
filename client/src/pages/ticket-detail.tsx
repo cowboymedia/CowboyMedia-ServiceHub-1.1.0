@@ -293,14 +293,12 @@ export default function TicketDetail() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] max-h-[calc(100vh-4rem)] overflow-x-hidden">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] max-h-[calc(100vh-4rem)] overflow-x-hidden" style={{ overscrollBehavior: "none" }}>
       <div className="flex items-center justify-between gap-3 pb-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <Link href="/tickets">
-            <Button variant="ghost" size="icon" data-testid="button-back-tickets">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/tickets")} data-testid="button-back-tickets">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -646,7 +644,7 @@ export default function TicketDetail() {
             </div>
           )}
 
-          <div className="flex-1 p-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="flex-1 p-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
             {messagesLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
