@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy, ChevronDown, ChevronRight, ScrollText, Search } from "lucide-react";
 import { format } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { Download } from "lucide-react";
 import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory } from "@shared/schema";
@@ -68,6 +69,7 @@ const createUserSchema = z.object({
 });
 
 function UsersTab({ canManage = true }: { canManage?: boolean }) {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -446,6 +448,64 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
 
       {isLoading ? (
         <Skeleton className="h-40" />
+      ) : isMobile ? (
+        <div className="space-y-2">
+          {users?.map((u) => (
+            <Card
+              key={u.id}
+              className="cursor-pointer active:bg-accent/50 transition-colors"
+              onClick={() => openDetailDialog(u)}
+              data-testid={`row-user-${u.id}`}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {newUserIds.includes(u.id) && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" data-testid={`dot-new-user-${u.id}`} />}
+                      <span className="font-medium text-sm truncate">{u.fullName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-muted-foreground">@{u.username}</span>
+                      <Badge variant={u.role === "admin" || u.role === "master_admin" ? "default" : "secondary"} className="text-[10px] capitalize px-1.5 py-0">
+                        {u.role === "master_admin" ? "Master Admin" : u.role}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                    <span title={pushStatus?.[u.id] ? "Push ON" : "Push OFF"} data-testid={`icon-push-${u.id}`}>
+                      {pushStatus?.[u.id] ? <Bell className="w-3.5 h-3.5 text-green-500" /> : <BellOff className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                    </span>
+                    <span title={u.emailNotifications !== false ? "Email ON" : "Email OFF"} data-testid={`icon-email-${u.id}`}>
+                      {u.emailNotifications !== false ? <Mail className="w-3.5 h-3.5 text-green-500" /> : <MailX className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 mt-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => openDetailDialog(u)} data-testid={`button-view-user-${u.id}`}>
+                    <Edit className="w-3 h-3" /> Edit
+                  </Button>
+                  {canManage && u.role !== "master_admin" && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => toggleRoleMutation.mutate({ id: u.id, role: u.role === "admin" ? "customer" : "admin" })} data-testid={`button-toggle-role-${u.id}`}>
+                      {u.role === "admin" ? <Shield className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                      {u.role === "admin" ? "Demote" : "Promote"}
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => { setSelectedUser(u); setResetDialogOpen(true); }} data-testid={`button-reset-password-${u.id}`}>
+                      <RotateCcw className="w-3 h-3" /> Reset
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-destructive" onClick={() => deleteMutation.mutate(u.id)} data-testid={`button-delete-user-${u.id}`}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -542,6 +602,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
 }
 
 function ServicesTab({ canManage = true }: { canManage?: boolean }) {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -632,7 +693,36 @@ function ServicesTab({ canManage = true }: { canManage?: boolean }) {
         </Dialog>
       </div>
 
-      {isLoading ? <Skeleton className="h-40" /> : (
+      {isLoading ? <Skeleton className="h-40" /> : isMobile ? (
+        <div className="space-y-2">
+          {services?.map((s) => (
+            <Card key={s.id} data-testid={`row-service-${s.id}`}>
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium text-sm">{s.name}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {s.category && <span className="text-xs text-muted-foreground">{s.category}</span>}
+                      <Badge variant="secondary" className="text-[10px] capitalize px-1.5 py-0">{s.status}</Badge>
+                    </div>
+                    {s.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.description}</p>}
+                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => openEdit(s)} data-testid={`button-edit-service-${s.id}`}>
+                        <Edit className="w-3 h-3" /> Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-destructive" onClick={() => deleteMutation.mutate(s.id)} data-testid={`button-delete-service-${s.id}`}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
         <Card>
           <div className="overflow-x-auto">
           <Table>
