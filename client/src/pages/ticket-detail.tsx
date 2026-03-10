@@ -100,7 +100,7 @@ export default function TicketDetail() {
     queryKey: ["/api/services"],
   });
 
-  const { data: customerInfo } = useQuery<{
+  const { data: customerInfo, isLoading: customerInfoLoading, error: customerInfoError } = useQuery<{
     customer: { id: string; username: string; email: string; fullName: string; role: string };
     ticket: { id: string; subject: string; description: string; serviceId: string | null; status: string; priority: string; createdAt: string; closedAt: string | null; imageUrl: string | null };
   }>({
@@ -398,26 +398,38 @@ export default function TicketDetail() {
           <DialogHeader>
             <DialogTitle>Customer & Ticket Information</DialogTitle>
           </DialogHeader>
-          {customerInfo && (
+          {customerInfoLoading ? (
+            <div className="space-y-4" data-testid="customer-info-loading">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-6 w-1/3 mt-4" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : customerInfoError ? (
+            <p className="text-sm text-destructive py-4" data-testid="customer-info-error">Failed to load customer information. Please close and try again.</p>
+          ) : customerInfo?.customer && customerInfo?.ticket ? (
             <div className="space-y-6">
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm">Customer Information</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Full Name</span>
-                    <span className="text-sm" data-testid="text-customer-fullname">{customerInfo.customer.fullName}</span>
+                    <span className="text-sm" data-testid="text-customer-fullname">{customerInfo.customer.fullName || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Username</span>
-                    <span className="text-sm" data-testid="text-customer-username">{customerInfo.customer.username}</span>
+                    <span className="text-sm" data-testid="text-customer-username">{customerInfo.customer.username || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Email</span>
-                    <span className="text-sm" data-testid="text-customer-email">{customerInfo.customer.email}</span>
+                    <span className="text-sm" data-testid="text-customer-email">{customerInfo.customer.email || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Role</span>
-                    <span className="text-sm capitalize">{customerInfo.customer.role}</span>
+                    <span className="text-sm capitalize">{customerInfo.customer.role || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -426,11 +438,11 @@ export default function TicketDetail() {
                 <div className="space-y-2">
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Subject</span>
-                    <span className="text-sm" data-testid="text-ticket-detail-subject">{customerInfo.ticket.subject}</span>
+                    <span className="text-sm" data-testid="text-ticket-detail-subject">{customerInfo.ticket.subject || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Description</span>
-                    <span className="text-sm text-right max-w-[60%]">{customerInfo.ticket.description}</span>
+                    <span className="text-sm text-right max-w-[60%]">{customerInfo.ticket.description || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Service</span>
@@ -438,15 +450,15 @@ export default function TicketDetail() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Priority</span>
-                    <span className="text-sm capitalize" data-testid="text-ticket-detail-priority">{customerInfo.ticket.priority}</span>
+                    <span className="text-sm capitalize" data-testid="text-ticket-detail-priority">{customerInfo.ticket.priority || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Status</span>
-                    <span className="text-sm capitalize" data-testid="text-ticket-detail-status">{customerInfo.ticket.status}</span>
+                    <span className="text-sm capitalize" data-testid="text-ticket-detail-status">{customerInfo.ticket.status || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Created</span>
-                    <span className="text-sm">{format(new Date(customerInfo.ticket.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                    <span className="text-sm">{customerInfo.ticket.createdAt ? format(new Date(customerInfo.ticket.createdAt), "MMM d, yyyy 'at' h:mm a") : "—"}</span>
                   </div>
                   {customerInfo.ticket.closedAt && (
                     <div className="flex justify-between gap-2">
@@ -463,6 +475,8 @@ export default function TicketDetail() {
                 </div>
               </div>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4" data-testid="customer-info-empty">No customer information available.</p>
           )}
         </DialogContent>
       </Dialog>
