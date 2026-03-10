@@ -153,7 +153,7 @@ export default function TicketsPage() {
                 <Plus className="w-4 h-4 mr-1" /> New Ticket
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Open a Support Ticket</DialogTitle>
               </DialogHeader>
@@ -359,7 +359,7 @@ export default function TicketsPage() {
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Ticket</AlertDialogTitle>
                             <AlertDialogDescription>

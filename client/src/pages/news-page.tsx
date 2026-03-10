@@ -47,7 +47,7 @@ export default function NewsPage() {
                     <img
                       src={story.imageUrl}
                       alt=""
-                      className="w-28 h-20 rounded-md object-contain flex-shrink-0"
+                      className="w-20 h-14 sm:w-28 sm:h-20 rounded-md object-contain flex-shrink-0"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
                   )}

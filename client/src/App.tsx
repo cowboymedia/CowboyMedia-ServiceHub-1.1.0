@@ -132,7 +132,7 @@ function SetupReminderDialog() {
 
   return (
     <Dialog open={showReminder} onOpenChange={setShowReminder}>
-      <DialogContent className="max-w-md" data-testid="dialog-setup-reminder">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" data-testid="dialog-setup-reminder">
         <DialogHeader>
           <div className="flex justify-center mb-2">
             <img src={logoImg} alt="CowboyMedia" className="h-16" />
@@ -219,7 +219,7 @@ function PrivateMessagePopup() {
 
   return (
     <Dialog open={!!popupMessage} onOpenChange={(open) => { if (!open) setPopupMessage(null); }}>
-      <DialogContent className="max-w-md" data-testid="dialog-private-message-popup">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" data-testid="dialog-private-message-popup">
         <DialogHeader>
           <div className="flex justify-center mb-2">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -323,7 +323,7 @@ function BroadcastAlertPopup() {
   return (
     <Dialog open={true} onOpenChange={() => {}}>
       <DialogContent
-        className="max-w-md [&>button]:hidden"
+        className="w-[calc(100vw-2rem)] sm:max-w-md [&>button]:hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         data-testid="dialog-broadcast-alert"
@@ -396,7 +396,7 @@ function WelcomeDialog() {
 
   return (
     <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
-      <DialogContent className="max-w-md" data-testid="dialog-welcome">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" data-testid="dialog-welcome">
         <DialogHeader>
           <div className="flex justify-center mb-2">
             <img src={logoImg} alt="CowboyMedia" className="h-16" />
@@ -587,7 +587,7 @@ function TicketTransferPopup() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-md" data-testid="dialog-ticket-transfer">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" data-testid="dialog-ticket-transfer">
         <DialogHeader>
           <div className="flex justify-center mb-2">
             <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">

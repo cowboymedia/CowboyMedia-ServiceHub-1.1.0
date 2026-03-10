@@ -198,7 +198,7 @@ export default function ReportRequestPage() {
       </div>
 
       <Dialog open={activeForm === "content_issue"} onOpenChange={(open) => { if (!open) setActiveForm(null); }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Report Content Issue</DialogTitle>
           </DialogHeader>
@@ -245,7 +245,7 @@ export default function ReportRequestPage() {
       </Dialog>
 
       <Dialog open={activeForm === "movie_request"} onOpenChange={(open) => { if (!open) setActiveForm(null); }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Request Movie/Series</DialogTitle>
           </DialogHeader>
@@ -292,7 +292,7 @@ export default function ReportRequestPage() {
       </Dialog>
 
       <Dialog open={activeForm === "app_issue"} onOpenChange={(open) => { if (!open) { setActiveForm(null); setSelectedFile(null); } }}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Report App Issue / Feature Request</DialogTitle>
           </DialogHeader>

@@ -408,7 +408,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
                         Delete
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete User?</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -1225,7 +1225,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
                             <Trash2 className="w-3 h-3 mr-1" /> Delete
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Alert</AlertDialogTitle>
                             <AlertDialogDescription>Are you sure you want to delete this alert? This will also delete all associated updates. This action cannot be undone.</AlertDialogDescription>
@@ -1597,7 +1597,7 @@ function MessagesTab({ canManage = true }: { canManage?: boolean }) {
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Sent Message</AlertDialogTitle>
                       <AlertDialogDescription>Are you sure you want to delete this sent message? This action cannot be undone.</AlertDialogDescription>
@@ -1768,7 +1768,7 @@ function QuickResponsesTab({ canManage = true }: { canManage?: boolean }) {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Quick Response</AlertDialogTitle>
                           <AlertDialogDescription>Are you sure you want to delete "{qr.title}"?</AlertDialogDescription>
@@ -1929,7 +1929,7 @@ function ReportsRequestsTab({ canManage = true }: { canManage?: boolean }) {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Report/Request</AlertDialogTitle>
                           <AlertDialogDescription>Are you sure you want to delete this submission?</AlertDialogDescription>
@@ -2201,7 +2201,7 @@ function ServiceUpdatesTab({ canManage = true }: { canManage?: boolean }) {
                             <Trash2 className="w-3 h-3 mr-1" /> Delete
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Service Update?</AlertDialogTitle>
                             <AlertDialogDescription>This will permanently remove this service update.</AlertDialogDescription>
@@ -2478,7 +2478,7 @@ function EmailTemplatesTab({ canManage = true }: { canManage?: boolean }) {
                       Reset to Default
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Reset Template?</AlertDialogTitle>
                       <AlertDialogDescription>
@@ -2900,7 +2900,7 @@ function AdminManagementTab() {
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Role</AlertDialogTitle>
                         <AlertDialogDescription>This will remove the role from all assigned admins. Continue?</AlertDialogDescription>
@@ -2994,7 +2994,7 @@ function AdminManagementTab() {
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Category</AlertDialogTitle>
                         <AlertDialogDescription>Tickets in this category will become uncategorized. Continue?</AlertDialogDescription>

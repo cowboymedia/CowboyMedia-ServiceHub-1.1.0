@@ -339,7 +339,7 @@ export default function TicketDetail() {
                   <UserIcon className="w-4 h-4 mr-1" /> Customer Info
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Customer & Ticket Information</DialogTitle>
                 </DialogHeader>
@@ -419,7 +419,7 @@ export default function TicketDetail() {
                   <Clock className="w-4 h-4 mr-1" /> History
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[80vh] flex flex-col">
+              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
                 <DialogHeader><DialogTitle>Customer's Previous Tickets</DialogTitle></DialogHeader>
                 <div className="flex-1 overflow-y-auto space-y-3">
                   {previousTicketsLoading ? (
@@ -470,7 +470,7 @@ export default function TicketDetail() {
                   <ArrowRightLeft className="w-4 h-4 mr-1" /> Transfer
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Transfer Ticket</DialogTitle>
                 </DialogHeader>
@@ -512,7 +512,7 @@ export default function TicketDetail() {
                   <CheckCircle className="w-4 h-4 mr-1" /> Close Ticket
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
                 <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <Textarea
@@ -542,7 +542,7 @@ export default function TicketDetail() {
                   <CheckCircle className="w-4 h-4 mr-1" /> Close Ticket
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
                 <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <Textarea

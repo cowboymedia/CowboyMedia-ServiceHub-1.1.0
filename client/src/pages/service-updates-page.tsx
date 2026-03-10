@@ -112,7 +112,7 @@ export default function ServiceUpdatesPage() {
       </div>
 
       <AlertDialog open={!!pendingUnlock} onOpenChange={(open) => { if (!open) setPendingUnlock(null); }}>
-        <AlertDialogContent data-testid="dialog-mature-warning">
+        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm" data-testid="dialog-mature-warning">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-destructive" />
@@ -141,7 +141,7 @@ export default function ServiceUpdatesPage() {
       </AlertDialog>
 
       <AlertDialog open={!!pendingAdminDelete} onOpenChange={(open) => { if (!open) setPendingAdminDelete(null); }}>
-        <AlertDialogContent data-testid="dialog-admin-delete">
+        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm" data-testid="dialog-admin-delete">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Service Update</AlertDialogTitle>
             <AlertDialogDescription>

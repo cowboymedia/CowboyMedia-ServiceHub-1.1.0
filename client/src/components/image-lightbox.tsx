@@ -13,7 +13,7 @@ interface ImageLightboxProps {
 export function ImageLightbox({ src, alt, open, onOpenChange }: ImageLightboxProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 bg-transparent border-none">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-4xl p-0 bg-transparent border-none">
         <div className="relative">
           <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
             <a href={src} download target="_blank" rel="noopener noreferrer">
@@ -56,7 +56,7 @@ interface VideoLightboxProps {
 export function VideoLightbox({ src, open, onOpenChange }: VideoLightboxProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 bg-transparent border-none">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-4xl p-0 bg-transparent border-none">
         <div className="relative">
           <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
             <a href={src} download target="_blank" rel="noopener noreferrer">

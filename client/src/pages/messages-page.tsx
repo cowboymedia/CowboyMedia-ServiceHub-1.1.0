@@ -61,7 +61,7 @@ export default function MessagesPage() {
       </div>
 
       <Dialog open={!!selectedMessage} onOpenChange={(open) => { if (!open) setSelectedMessage(null); }}>
-        <DialogContent className="max-w-md" data-testid="dialog-view-message">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" data-testid="dialog-view-message">
           <DialogHeader>
             <DialogTitle data-testid="text-message-dialog-subject">{selectedMessage?.subject}</DialogTitle>
           </DialogHeader>
@@ -125,7 +125,7 @@ export default function MessagesPage() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Message</AlertDialogTitle>
                             <AlertDialogDescription>Are you sure you want to delete this message? This action cannot be undone.</AlertDialogDescription>
