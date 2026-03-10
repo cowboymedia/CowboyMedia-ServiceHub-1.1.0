@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock, MoreVertical } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +71,7 @@ export default function TicketDetail() {
   const { user, isAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [message, setMessage] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
@@ -332,240 +334,269 @@ export default function TicketDetail() {
               {isAdmin ? (ticket.claimedBy === user?.id ? "Claimed by you" : `Claimed by ${(ticket as any).claimedByName || "admin"}`) : "Claimed"}
             </Badge>
           )}
-          {isAdmin && (
-            <Dialog open={customerInfoOpen} onOpenChange={setCustomerInfoOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-customer-info">
+          {isMobile && isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" data-testid="button-ticket-actions-menu">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setCustomerInfoOpen(true)} data-testid="menu-customer-info">
+                  <UserIcon className="w-4 h-4 mr-2" /> Customer Info
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setHistoryOpen(true)} data-testid="menu-ticket-history">
+                  <Clock className="w-4 h-4 mr-2" /> History
+                </DropdownMenuItem>
+                {ticket.status === "open" && ticket.claimedBy === user?.id && (
+                  <DropdownMenuItem onClick={() => setTransferDialogOpen(true)} data-testid="menu-transfer-ticket">
+                    <ArrowRightLeft className="w-4 h-4 mr-2" /> Transfer
+                  </DropdownMenuItem>
+                )}
+                {ticket.status === "open" && (
+                  <DropdownMenuItem onClick={() => setCloseDialogOpen(true)} data-testid="menu-close-ticket">
+                    <CheckCircle className="w-4 h-4 mr-2" /> Close Ticket
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {!isMobile && (
+            <>
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setCustomerInfoOpen(true)} data-testid="button-customer-info">
                   <UserIcon className="w-4 h-4 mr-1" /> Customer Info
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Customer & Ticket Information</DialogTitle>
-                </DialogHeader>
-                {customerInfo && (
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-sm">Customer Information</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Full Name</span>
-                          <span className="text-sm" data-testid="text-customer-fullname">{customerInfo.customer.fullName}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Username</span>
-                          <span className="text-sm" data-testid="text-customer-username">{customerInfo.customer.username}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Email</span>
-                          <span className="text-sm" data-testid="text-customer-email">{customerInfo.customer.email}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Role</span>
-                          <span className="text-sm capitalize">{customerInfo.customer.role}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-sm">Ticket Details</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Subject</span>
-                          <span className="text-sm" data-testid="text-ticket-detail-subject">{customerInfo.ticket.subject}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Description</span>
-                          <span className="text-sm text-right max-w-[60%]">{customerInfo.ticket.description}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Service</span>
-                          <span className="text-sm">{services?.find((s) => s.id === customerInfo.ticket.serviceId)?.name || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Priority</span>
-                          <span className="text-sm capitalize" data-testid="text-ticket-detail-priority">{customerInfo.ticket.priority}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Status</span>
-                          <span className="text-sm capitalize" data-testid="text-ticket-detail-status">{customerInfo.ticket.status}</span>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">Created</span>
-                          <span className="text-sm">{format(new Date(customerInfo.ticket.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
-                        </div>
-                        {customerInfo.ticket.closedAt && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-sm text-muted-foreground">Closed</span>
-                            <span className="text-sm">{format(new Date(customerInfo.ticket.closedAt), "MMM d, yyyy 'at' h:mm a")}</span>
-                          </div>
-                        )}
-                        {customerInfo.ticket.imageUrl && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-sm text-muted-foreground">Attachment</span>
-                            <FileAttachment url={customerInfo.ticket.imageUrl} className="max-w-[120px] h-20 object-cover rounded-md" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
-          )}
-          {isAdmin && (
-            <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-ticket-history">
+              )}
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} data-testid="button-ticket-history">
                   <Clock className="w-4 h-4 mr-1" /> History
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
-                <DialogHeader><DialogTitle>Customer's Previous Tickets</DialogTitle></DialogHeader>
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {previousTicketsLoading ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
-                    </div>
-                  ) : !previousTickets || previousTickets.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No previous tickets from this customer</p>
-                  ) : (
-                    previousTickets.map((pt) => (
-                      <div
-                        key={pt.id}
-                        className="p-3 rounded-md border space-y-2 cursor-pointer transition-colors"
-                        data-testid={`previous-ticket-${pt.id}`}
-                        onClick={() => { setHistoryOpen(false); setLocation(`/tickets/${pt.id}`); }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium underline underline-offset-2" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{pt.subject}</p>
-                          <Badge variant={pt.status === "closed" ? "secondary" : "default"} className="text-xs capitalize flex-shrink-0">{pt.status}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                          <span>Opened {format(new Date(pt.createdAt), "MMM d, yyyy")}</span>
-                          {pt.closedAt && <span>· Closed {format(new Date(pt.closedAt), "MMM d, yyyy")}</span>}
-                          {pt.categoryName && <Badge variant="outline" className="text-[10px]">{pt.categoryName}</Badge>}
-                          {pt.closedBy && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {pt.closedBy === ticket.customerId ? "Closed by Customer" : "Closed by Admin"}
-                            </Badge>
-                          )}
-                        </div>
-                        {pt.resolutionNote && (
-                          <div className={`p-2 rounded text-xs whitespace-pre-wrap ${pt.closedBy === ticket.customerId ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300" : "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                            <span className="font-semibold">{pt.closedBy === ticket.customerId ? "Customer Note: " : "Resolution: "}</span>
-                            {pt.resolutionNote}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-          {isAdmin && ticket.status === "open" && ticket.claimedBy === user?.id && (
-            <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-transfer-ticket">
+              )}
+              {isAdmin && ticket.status === "open" && ticket.claimedBy === user?.id && (
+                <Button variant="outline" size="sm" onClick={() => setTransferDialogOpen(true)} data-testid="button-transfer-ticket">
                   <ArrowRightLeft className="w-4 h-4 mr-1" /> Transfer
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Transfer Ticket</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Select value={transferToAdminId} onValueChange={setTransferToAdminId}>
-                    <SelectTrigger data-testid="select-transfer-admin">
-                      <SelectValue placeholder="Select an admin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {supportAdmins?.filter((a) => a.id !== user?.id).map((admin) => (
-                        <SelectItem key={admin.id} value={admin.id}>
-                          {admin.fullName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Textarea
-                    placeholder="Reason for transfer..."
-                    value={transferReason}
-                    onChange={(e) => setTransferReason(e.target.value)}
-                    data-testid="input-transfer-reason"
-                  />
-                  <Button
-                    onClick={() => transferMutation.mutate()}
-                    disabled={!transferToAdminId || !transferReason.trim() || transferMutation.isPending}
-                    className="w-full"
-                    data-testid="button-submit-transfer"
-                  >
-                    {transferMutation.isPending ? "Transferring..." : "Transfer Ticket"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-          {ticket.status === "open" && isAdmin && (
-            <Dialog open={closeDialogOpen} onOpenChange={(open) => { setCloseDialogOpen(open); if (!open) setResolutionNote(""); }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-close-ticket">
+              )}
+              {ticket.status === "open" && (
+                <Button variant="outline" size="sm" onClick={() => setCloseDialogOpen(true)} data-testid="button-close-ticket">
                   <CheckCircle className="w-4 h-4 mr-1" /> Close Ticket
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
-                <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
-                <div className="space-y-4">
-                  <Textarea
-                    placeholder="Describe the issue and how it was resolved..."
-                    value={resolutionNote}
-                    onChange={(e) => setResolutionNote(e.target.value)}
-                    rows={5}
-                    data-testid="input-resolution-note"
-                  />
-                  <p className="text-xs text-muted-foreground">Customer will receive a copy of your detailed ticket summary</p>
-                  <Button
-                    className="w-full"
-                    disabled={closeMutation.isPending || !resolutionNote.trim()}
-                    onClick={() => closeMutation.mutate(resolutionNote.trim())}
-                    data-testid="button-confirm-close-ticket"
-                  >
-                    {closeMutation.isPending ? "Closing..." : "Close Ticket"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+              )}
+            </>
           )}
-          {ticket.status === "open" && !isAdmin && (
-            <Dialog open={closeDialogOpen} onOpenChange={(open) => { setCloseDialogOpen(open); if (!open) setResolutionNote(""); }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-close-ticket">
-                  <CheckCircle className="w-4 h-4 mr-1" /> Close Ticket
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
-                <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
-                <div className="space-y-4">
-                  <Textarea
-                    placeholder="Add a note about this ticket (optional)"
-                    value={resolutionNote}
-                    onChange={(e) => setResolutionNote(e.target.value)}
-                    rows={4}
-                    data-testid="input-customer-close-note"
-                  />
-                  <Button
-                    className="w-full"
-                    disabled={closeMutation.isPending}
-                    onClick={() => closeMutation.mutate(resolutionNote.trim() || undefined)}
-                    data-testid="button-confirm-close-ticket"
-                  >
-                    {closeMutation.isPending ? "Closing..." : "Close Ticket"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+          {isMobile && !isAdmin && ticket.status === "open" && (
+            <Button variant="outline" size="sm" onClick={() => setCloseDialogOpen(true)} data-testid="button-close-ticket">
+              <CheckCircle className="w-4 h-4 mr-1" /> Close
+            </Button>
           )}
         </div>
       </div>
+
+      <Dialog open={customerInfoOpen} onOpenChange={setCustomerInfoOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customer & Ticket Information</DialogTitle>
+          </DialogHeader>
+          {customerInfo && (
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm">Customer Information</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Full Name</span>
+                    <span className="text-sm" data-testid="text-customer-fullname">{customerInfo.customer.fullName}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Username</span>
+                    <span className="text-sm" data-testid="text-customer-username">{customerInfo.customer.username}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span className="text-sm" data-testid="text-customer-email">{customerInfo.customer.email}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Role</span>
+                    <span className="text-sm capitalize">{customerInfo.customer.role}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm">Ticket Details</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Subject</span>
+                    <span className="text-sm" data-testid="text-ticket-detail-subject">{customerInfo.ticket.subject}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Description</span>
+                    <span className="text-sm text-right max-w-[60%]">{customerInfo.ticket.description}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Service</span>
+                    <span className="text-sm">{services?.find((s) => s.id === customerInfo.ticket.serviceId)?.name || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Priority</span>
+                    <span className="text-sm capitalize" data-testid="text-ticket-detail-priority">{customerInfo.ticket.priority}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <span className="text-sm capitalize" data-testid="text-ticket-detail-status">{customerInfo.ticket.status}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Created</span>
+                    <span className="text-sm">{format(new Date(customerInfo.ticket.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                  </div>
+                  {customerInfo.ticket.closedAt && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-sm text-muted-foreground">Closed</span>
+                      <span className="text-sm">{format(new Date(customerInfo.ticket.closedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                    </div>
+                  )}
+                  {customerInfo.ticket.imageUrl && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-sm text-muted-foreground">Attachment</span>
+                      <FileAttachment url={customerInfo.ticket.imageUrl} className="max-w-[120px] h-20 object-cover rounded-md" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader><DialogTitle>Customer's Previous Tickets</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-3">
+            {previousTicketsLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+              </div>
+            ) : !previousTickets || previousTickets.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No previous tickets from this customer</p>
+            ) : (
+              previousTickets.map((pt) => (
+                <div
+                  key={pt.id}
+                  className="p-3 rounded-md border space-y-2 cursor-pointer transition-colors"
+                  data-testid={`previous-ticket-${pt.id}`}
+                  onClick={() => { setHistoryOpen(false); setLocation(`/tickets/${pt.id}`); }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium underline underline-offset-2" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{pt.subject}</p>
+                    <Badge variant={pt.status === "closed" ? "secondary" : "default"} className="text-xs capitalize flex-shrink-0">{pt.status}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                    <span>Opened {format(new Date(pt.createdAt), "MMM d, yyyy")}</span>
+                    {pt.closedAt && <span>· Closed {format(new Date(pt.closedAt), "MMM d, yyyy")}</span>}
+                    {pt.categoryName && <Badge variant="outline" className="text-[10px]">{pt.categoryName}</Badge>}
+                    {pt.closedBy && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {pt.closedBy === ticket.customerId ? "Closed by Customer" : "Closed by Admin"}
+                      </Badge>
+                    )}
+                  </div>
+                  {pt.resolutionNote && (
+                    <div className={`p-2 rounded text-xs whitespace-pre-wrap ${pt.closedBy === ticket.customerId ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300" : "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                      <span className="font-semibold">{pt.closedBy === ticket.customerId ? "Customer Note: " : "Resolution: "}</span>
+                      {pt.resolutionNote}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transfer Ticket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select value={transferToAdminId} onValueChange={setTransferToAdminId}>
+              <SelectTrigger data-testid="select-transfer-admin">
+                <SelectValue placeholder="Select an admin" />
+              </SelectTrigger>
+              <SelectContent>
+                {supportAdmins?.filter((a) => a.id !== user?.id).map((admin) => (
+                  <SelectItem key={admin.id} value={admin.id}>
+                    {admin.fullName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Textarea
+              placeholder="Reason for transfer..."
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              data-testid="input-transfer-reason"
+            />
+            <Button
+              onClick={() => transferMutation.mutate()}
+              disabled={!transferToAdminId || !transferReason.trim() || transferMutation.isPending}
+              className="w-full"
+              data-testid="button-submit-transfer"
+            >
+              {transferMutation.isPending ? "Transferring..." : "Transfer Ticket"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {ticket.status === "open" && isAdmin && (
+        <Dialog open={closeDialogOpen} onOpenChange={(open) => { setCloseDialogOpen(open); if (!open) setResolutionNote(""); }}>
+          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+            <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Describe the issue and how it was resolved..."
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+                rows={5}
+                data-testid="input-resolution-note"
+              />
+              <p className="text-xs text-muted-foreground">Customer will receive a copy of your detailed ticket summary</p>
+              <Button
+                className="w-full"
+                disabled={closeMutation.isPending || !resolutionNote.trim()}
+                onClick={() => closeMutation.mutate(resolutionNote.trim())}
+                data-testid="button-confirm-close-ticket"
+              >
+                {closeMutation.isPending ? "Closing..." : "Close Ticket"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {ticket.status === "open" && !isAdmin && (
+        <Dialog open={closeDialogOpen} onOpenChange={(open) => { setCloseDialogOpen(open); if (!open) setResolutionNote(""); }}>
+          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+            <DialogHeader><DialogTitle>Close Ticket</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Add a note about this ticket (optional)"
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+                rows={4}
+                data-testid="input-customer-close-note"
+              />
+              <Button
+                className="w-full"
+                disabled={closeMutation.isPending}
+                onClick={() => closeMutation.mutate(resolutionNote.trim() || undefined)}
+                data-testid="button-confirm-close-ticket"
+              >
+                {closeMutation.isPending ? "Closing..." : "Close Ticket"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Card className="flex-1 flex flex-col min-h-0">
         <CardContent className="flex-1 flex flex-col min-h-0 p-0">
