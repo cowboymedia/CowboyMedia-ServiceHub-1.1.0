@@ -77,7 +77,7 @@ function AuthenticatedLayout() {
             <SidebarTrigger className="h-12 w-12 min-h-[48px] min-w-[48px] [&_svg]:!h-7 [&_svg]:!w-7" data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
-          <PullToRefresh className={`flex-1 ${isTicketDetail || isAdminPortal ? 'overflow-hidden' : 'overflow-auto'}`} disabled={isTicketDetail || isAdminPortal}>
+          <PullToRefresh className={`flex-1 ${isTicketDetail ? 'overflow-hidden' : 'overflow-auto'}`} disabled={isTicketDetail || isAdminPortal}>
             <main className={isTicketDetail ? "h-full" : "p-3 sm:p-6"}>
               <AppRouter />
             </main>

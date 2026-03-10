@@ -171,6 +171,15 @@ export default function TicketDetail() {
   }, [params.id, user?.id]);
 
   useEffect(() => {
+    setCustomerInfoOpen(false);
+    setHistoryOpen(false);
+    setTransferDialogOpen(false);
+    setCloseDialogOpen(false);
+    setMessage("");
+    setImageFile(null);
+  }, [params.id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -293,7 +302,7 @@ export default function TicketDetail() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden" style={{ overscrollBehavior: "none" }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ overscrollBehavior: "none" }}>
       <div className="flex items-center justify-between gap-3 pb-4 flex-wrap flex-shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setLocation("/tickets")} data-testid="button-back-tickets">
@@ -495,7 +504,7 @@ export default function TicketDetail() {
                   key={pt.id}
                   className="p-3 rounded-md border space-y-2 cursor-pointer transition-colors"
                   data-testid={`previous-ticket-${pt.id}`}
-                  onClick={() => { setHistoryOpen(false); setLocation(`/tickets/${pt.id}`); }}
+                  onClick={() => { setHistoryOpen(false); setTimeout(() => setLocation(`/tickets/${pt.id}`), 200); }}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium underline underline-offset-2" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{pt.subject}</p>
