@@ -292,7 +292,7 @@ export default function TicketsPage() {
           ) : (
             openTickets.map((ticket) => (
               <Link key={ticket.id} href={`/tickets/${ticket.id}`}>
-                <Card className="hover-elevate cursor-pointer" data-testid={`card-ticket-${ticket.id}`}>
+                <Card className="hover-elevate tap-interactive cursor-pointer" data-testid={`card-ticket-${ticket.id}`}>
                   <CardContent className="flex items-start justify-between gap-3 p-4">
                     <div className="flex items-start gap-3">
                       <MessageSquare className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
@@ -336,7 +336,7 @@ export default function TicketsPage() {
             </Card>
           ) : (
             closedTickets.map((ticket) => (
-              <Card key={ticket.id} className="hover-elevate cursor-pointer opacity-80" data-testid={`card-ticket-closed-${ticket.id}`}>
+              <Card key={ticket.id} className="hover-elevate tap-interactive cursor-pointer opacity-80" data-testid={`card-ticket-closed-${ticket.id}`}>
                 <CardContent className="flex items-start justify-between gap-3 p-4">
                   <Link href={`/tickets/${ticket.id}`} className="flex-1">
                     <div className="space-y-1">

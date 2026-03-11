@@ -10,15 +10,17 @@ import { ArrowLeft, Activity, CheckCircle, AlertTriangle, XCircle, Wrench, Clock
 import type { Service, ServiceAlert } from "@shared/schema";
 
 function ServiceStatusIcon({ status }: { status: string }) {
+  const isActive = status !== "operational";
+  const pulseClass = isActive ? "animate-status-pulse" : "";
   switch (status) {
     case "operational":
       return <CheckCircle className="w-6 h-6 text-status-online" />;
     case "degraded":
-      return <AlertTriangle className="w-6 h-6 text-status-away" />;
+      return <AlertTriangle className={`w-6 h-6 text-status-away ${pulseClass}`} />;
     case "outage":
-      return <XCircle className="w-6 h-6 text-status-busy" />;
+      return <XCircle className={`w-6 h-6 text-status-busy ${pulseClass}`} />;
     case "maintenance":
-      return <Wrench className="w-6 h-6 text-status-offline" />;
+      return <Wrench className={`w-6 h-6 text-status-offline ${pulseClass}`} />;
     default:
       return <Activity className="w-6 h-6 text-muted-foreground" />;
   }

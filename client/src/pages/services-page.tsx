@@ -9,15 +9,17 @@ import { Activity, CheckCircle, AlertTriangle, XCircle, Wrench, ChevronRight } f
 import { Link } from "wouter";
 
 function StatusIcon({ status }: { status: string }) {
+  const isActive = status !== "operational";
+  const pulseClass = isActive ? "animate-status-pulse" : "";
   switch (status) {
     case "operational":
       return <CheckCircle className="w-5 h-5 text-status-online" />;
     case "degraded":
-      return <AlertTriangle className="w-5 h-5 text-status-away" />;
+      return <AlertTriangle className={`w-5 h-5 text-status-away ${pulseClass}`} />;
     case "outage":
-      return <XCircle className="w-5 h-5 text-status-busy" />;
+      return <XCircle className={`w-5 h-5 text-status-busy ${pulseClass}`} />;
     case "maintenance":
-      return <Wrench className="w-5 h-5 text-status-offline" />;
+      return <Wrench className={`w-5 h-5 text-status-offline ${pulseClass}`} />;
     default:
       return <Activity className="w-5 h-5 text-muted-foreground" />;
   }
@@ -78,7 +80,7 @@ export default function ServicesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {services.map((service) => (
             <Link key={service.id} href={`/services/${service.id}`}>
-              <Card className="hover-elevate cursor-pointer" data-testid={`card-service-${service.id}`}>
+              <Card className="hover-elevate tap-interactive cursor-pointer" data-testid={`card-service-${service.id}`}>
                 <CardContent className="flex items-start gap-3 p-4">
                   <div className="mt-0.5">
                     <StatusIcon status={service.status} />

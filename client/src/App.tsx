@@ -37,25 +37,36 @@ import ReportRequestPage from "@/pages/report-request-page";
 import ServiceUpdatesPage from "@/pages/service-updates-page";
 import ServiceDetail from "@/pages/service-detail";
 
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  return (
+    <div key={location} className="animate-page-enter">
+      {children}
+    </div>
+  );
+}
+
 function AppRouter() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/services" component={ServicesPage} />
-      <Route path="/services/:id" component={ServiceDetail} />
-      <Route path="/alerts" component={AlertsPage} />
-      <Route path="/alerts/:id" component={AlertDetail} />
-      <Route path="/news" component={NewsPage} />
-      <Route path="/news/:id" component={NewsDetail} />
-      <Route path="/tickets" component={TicketsPage} />
-      <Route path="/tickets/:id" component={TicketDetail} />
-      <Route path="/profile" component={ProfilePage} />
-      <Route path="/messages" component={MessagesPage} />
-      <Route path="/service-updates" component={ServiceUpdatesPage} />
-      <Route path="/report-request" component={ReportRequestPage} />
-      <Route path="/admin" component={AdminPortal} />
-      <Route component={NotFound} />
-    </Switch>
+    <PageTransition>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/services" component={ServicesPage} />
+        <Route path="/services/:id" component={ServiceDetail} />
+        <Route path="/alerts" component={AlertsPage} />
+        <Route path="/alerts/:id" component={AlertDetail} />
+        <Route path="/news" component={NewsPage} />
+        <Route path="/news/:id" component={NewsDetail} />
+        <Route path="/tickets" component={TicketsPage} />
+        <Route path="/tickets/:id" component={TicketDetail} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route path="/messages" component={MessagesPage} />
+        <Route path="/service-updates" component={ServiceUpdatesPage} />
+        <Route path="/report-request" component={ReportRequestPage} />
+        <Route path="/admin" component={AdminPortal} />
+        <Route component={NotFound} />
+      </Switch>
+    </PageTransition>
   );
 }
 

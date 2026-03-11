@@ -16,7 +16,8 @@ function StatusIndicator({ status }: { status: string }) {
     outage: "bg-status-busy",
     maintenance: "bg-status-offline",
   };
-  return <span className={`inline-block w-2.5 h-2.5 rounded-full ${colors[status] || "bg-status-offline"}`} />;
+  const isActive = status !== "operational";
+  return <span className={`inline-block w-2.5 h-2.5 rounded-full ${colors[status] || "bg-status-offline"} ${isActive ? "animate-status-pulse" : ""}`} />;
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -69,7 +70,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Link href="/services" data-testid="link-stat-services">
-          <Card className="cursor-pointer hover-elevate transition-shadow">
+          <Card className="cursor-pointer hover-elevate tap-interactive transition-shadow">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
                 <Activity className="w-5 h-5 text-primary" />
@@ -82,7 +83,7 @@ export default function Dashboard() {
           </Card>
         </Link>
         <Link href="/alerts" data-testid="link-stat-alerts">
-          <Card className="cursor-pointer hover-elevate transition-shadow">
+          <Card className="cursor-pointer hover-elevate tap-interactive transition-shadow">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-md bg-destructive/10 flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-destructive" />
@@ -95,7 +96,7 @@ export default function Dashboard() {
           </Card>
         </Link>
         <Link href="/tickets" data-testid="link-stat-tickets">
-          <Card className="cursor-pointer hover-elevate transition-shadow">
+          <Card className="cursor-pointer hover-elevate tap-interactive transition-shadow">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-md bg-chart-5/10 flex items-center justify-center">
                 <Ticket className="w-5 h-5 text-chart-5" />
@@ -108,7 +109,7 @@ export default function Dashboard() {
           </Card>
         </Link>
         <Link href="/news" data-testid="link-stat-news">
-          <Card className="cursor-pointer hover-elevate transition-shadow">
+          <Card className="cursor-pointer hover-elevate tap-interactive transition-shadow">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-md bg-chart-2/10 flex items-center justify-center">
                 <Newspaper className="w-5 h-5 text-chart-2" />
@@ -121,7 +122,7 @@ export default function Dashboard() {
           </Card>
         </Link>
         <Link href="/service-updates" data-testid="link-stat-service-updates">
-          <Card className="cursor-pointer hover-elevate transition-shadow">
+          <Card className="cursor-pointer hover-elevate tap-interactive transition-shadow">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-md bg-chart-3/10 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-chart-3" />
@@ -177,7 +178,7 @@ export default function Dashboard() {
             ) : (
               activeAlerts.slice(0, 4).map((alert) => (
                 <Link key={alert.id} href={`/alerts/${alert.id}`}>
-                  <div className="flex items-start justify-between gap-2 py-1.5 hover-elevate rounded-md px-2 -mx-2 cursor-pointer" data-testid={`alert-row-${alert.id}`}>
+                  <div className="flex items-start justify-between gap-2 py-1.5 hover-elevate tap-interactive rounded-md px-2 -mx-2 cursor-pointer" data-testid={`alert-row-${alert.id}`}>
                     <div className="space-y-0.5">
                       <p className="text-sm font-medium">{alert.title}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -212,7 +213,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               {news.slice(0, 3).map((story) => (
                 <Link key={story.id} href={`/news/${story.id}`}>
-                  <div className="flex items-start gap-3 py-2 hover-elevate rounded-md px-2 -mx-2 cursor-pointer" data-testid={`news-row-${story.id}`}>
+                  <div className="flex items-start gap-3 py-2 hover-elevate tap-interactive rounded-md px-2 -mx-2 cursor-pointer" data-testid={`news-row-${story.id}`}>
                     {story.imageUrl && (
                       <img src={story.imageUrl} alt="" className="w-16 h-12 rounded-md object-cover flex-shrink-0" />
                     )}
