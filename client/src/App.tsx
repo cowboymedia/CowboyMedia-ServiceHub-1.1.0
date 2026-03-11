@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity, Megaphone, ArrowRightLeft } from "lucide-react";
+import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity, Megaphone, ArrowRightLeft, LayoutDashboard } from "lucide-react";
 import { format } from "date-fns";
 import { subscribeToPush, isPushSupported, isSubscribedToPush } from "@/lib/push-notifications";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
@@ -119,14 +119,22 @@ function AuthenticatedLayout() {
         <div className="flex flex-col flex-1 min-w-0">
           <OfflineBanner />
           <PullToRefresh ref={scrollRef} className={`flex-1 ${isTicketDetail ? 'overflow-hidden' : 'overflow-auto'} ${isMobile ? 'pb-14' : ''}`} disabled={isTicketDetail || isAdminPortal}>
-            <header className="flex items-center gap-2 px-4 py-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] border-b bg-background">
-              <SidebarTrigger className="hidden md:flex h-10 w-10 min-h-[40px] min-w-[40px] [&_svg]:!h-5 [&_svg]:!w-5" data-testid="button-sidebar-toggle" />
-              <div className="flex-1 flex justify-center">
-                <Link href="/" data-testid="link-header-home">
-                  <img src={logoImg} alt="CowboyMedia" className="h-8 cursor-pointer" />
+            <header className="relative flex items-center px-3 py-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)] border-b bg-muted/50">
+              <div className="z-10">
+                {isMobile ? (
+                  <Link href="/" className="flex items-center gap-1.5 no-underline tap-interactive rounded-full px-3 py-1.5 bg-primary/10 hover:bg-primary/15 transition-colors" data-testid="link-header-dashboard">
+                    <LayoutDashboard className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-primary">Dashboard</span>
+                  </Link>
+                ) : (
+                  <SidebarTrigger className="h-10 w-10 min-h-[40px] min-w-[40px] [&_svg]:!h-5 [&_svg]:!w-5" data-testid="button-sidebar-toggle" />
+                )}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingTop: isMobile ? "env(safe-area-inset-top, 0px)" : undefined }}>
+                <Link href="/" className="pointer-events-auto" data-testid="link-header-home">
+                  <img src={logoImg} alt="CowboyMedia" className="h-10 md:h-8 cursor-pointer" />
                 </Link>
               </div>
-              {!isMobile && <div className="w-10" />}
             </header>
             <main className={isTicketDetail ? "h-full" : "p-3 sm:p-6"}>
               <AppRouter />
