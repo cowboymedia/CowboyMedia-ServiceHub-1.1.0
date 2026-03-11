@@ -48,10 +48,15 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: (failureCount, error) => {
+        if (!navigator.onLine) return false;
+        return failureCount < 1;
+      },
+      networkMode: "offlineFirst",
     },
     mutations: {
       retry: false,
+      networkMode: "offlineFirst",
     },
   },
 });

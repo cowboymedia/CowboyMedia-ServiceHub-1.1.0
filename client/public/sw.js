@@ -1,4 +1,4 @@
-const CACHE_NAME = 'servicehub-v5';
+const CACHE_NAME = 'servicehub-v6';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -15,7 +15,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== CACHE_NAME + '-api').map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -24,10 +24,35 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   
-  // Don't cache API calls or WebSocket connections
   const url = event.request.url;
-  if (url.includes('/api/') || url.includes('/ws')) {
-    event.respondWith(fetch(event.request));
+  if (url.includes('/ws')) return;
+
+  if (url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok && event.request.method === 'GET') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME + '-api').then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          if (event.request.method === 'GET') {
+            return caches.match(event.request).then((cached) => {
+              if (cached) return cached;
+              return new Response(JSON.stringify({ error: 'offline' }), {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' },
+              });
+            });
+          }
+          return new Response(JSON.stringify({ error: 'offline', message: 'You are offline. Please try again when connected.' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        })
+    );
     return;
   }
   

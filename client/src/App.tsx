@@ -8,6 +8,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { SplashScreen } from "@/components/splash-screen";
+import { OfflineBanner } from "@/components/offline-banner";
+import { onlineManager } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -85,10 +87,13 @@ function AuthenticatedLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-2 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] border-b sticky top-0 z-50 bg-background">
-            <SidebarTrigger className="h-12 w-12 min-h-[48px] min-w-[48px] [&_svg]:!h-7 [&_svg]:!w-7" data-testid="button-sidebar-toggle" />
-            <ThemeToggle />
-          </header>
+          <div className="sticky top-0 z-50">
+            <OfflineBanner />
+            <header className="flex items-center justify-between gap-2 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] border-b bg-background">
+              <SidebarTrigger className="h-12 w-12 min-h-[48px] min-w-[48px] [&_svg]:!h-7 [&_svg]:!w-7" data-testid="button-sidebar-toggle" />
+              <ThemeToggle />
+            </header>
+          </div>
           <PullToRefresh className={`flex-1 ${isTicketDetail ? 'overflow-hidden' : 'overflow-auto'}`} disabled={isTicketDetail || isAdminPortal}>
             <main className={isTicketDetail ? "h-full" : "p-3 sm:p-6"}>
               <AppRouter />
@@ -734,7 +739,12 @@ function AppContent() {
   }
 
   if (!user) {
-    return <AuthPage />;
+    return (
+      <>
+        <OfflineBanner />
+        <AuthPage />
+      </>
+    );
   }
 
   return (
@@ -750,6 +760,22 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const handleOnline = () => {
+      onlineManager.setOnline(true);
+      queryClient.invalidateQueries();
+    };
+    const handleOffline = () => {
+      onlineManager.setOnline(false);
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   const [showSplash, setShowSplash] = useState(() => {
     return !sessionStorage.getItem("splashShown");
   });

@@ -61,7 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: async () => {
       await apiRequest("POST", "/api/auth/logout");
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.includes('-api')).map((k) => caches.delete(k)));
+      }
+      queryClient.clear();
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
   });
