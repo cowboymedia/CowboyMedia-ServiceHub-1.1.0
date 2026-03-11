@@ -114,7 +114,7 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
+      <div className="flex h-dvh w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
           <OfflineBanner />
@@ -770,7 +770,7 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-dvh">
         <div className="space-y-4 w-64">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-4 w-3/4" />
