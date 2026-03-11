@@ -80,8 +80,9 @@ export default function TicketDetail() {
   const [transferToAdminId, setTransferToAdminId] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
-  const [originTicketId, setOriginTicketId] = useState<string | null>(null);
-  const [originTicketSubject, setOriginTicketSubject] = useState<string | null>(null);
+  const searchParams = new URLSearchParams(window.location.search);
+  const originTicketId = searchParams.get("from");
+  const originTicketSubject = searchParams.get("fromSubject");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +173,13 @@ export default function TicketDetail() {
     };
   }, [params.id, user?.id]);
 
+  const cleanupBodyStyles = () => {
+    document.body.style.removeProperty("pointer-events");
+    document.body.removeAttribute("data-scroll-locked");
+    document.body.style.removeProperty("overflow");
+    document.body.style.removeProperty("padding-right");
+  };
+
   useEffect(() => {
     setCustomerInfoOpen(false);
     setHistoryOpen(false);
@@ -180,12 +188,6 @@ export default function TicketDetail() {
     setMessage("");
     setImageFile(null);
 
-    const cleanupBodyStyles = () => {
-      document.body.style.removeProperty("pointer-events");
-      document.body.removeAttribute("data-scroll-locked");
-      document.body.style.removeProperty("overflow");
-      document.body.style.removeProperty("padding-right");
-    };
     cleanupBodyStyles();
     const interval = setInterval(cleanupBodyStyles, 50);
     const timeout = setTimeout(() => clearInterval(interval), 500);
@@ -232,6 +234,16 @@ export default function TicketDetail() {
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
+
+  useEffect(() => {
+    if (!customerInfoOpen && !historyOpen && !transferDialogOpen && !closeDialogOpen) {
+      cleanupBodyStyles();
+      const t1 = setTimeout(cleanupBodyStyles, 100);
+      const t2 = setTimeout(cleanupBodyStyles, 300);
+      const t3 = setTimeout(cleanupBodyStyles, 500);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }
+  }, [customerInfoOpen, historyOpen, transferDialogOpen, closeDialogOpen]);
 
   const closeMutation = useMutation({
     mutationFn: async (note?: string) => {
@@ -420,8 +432,6 @@ export default function TicketDetail() {
             size="sm"
             className="w-full text-xs gap-1.5 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40"
             onClick={() => {
-              setOriginTicketId(null);
-              setOriginTicketSubject(null);
               setLocation(`/tickets/${originTicketId}`);
             }}
             data-testid="button-return-to-ticket"
@@ -537,12 +547,9 @@ export default function TicketDetail() {
                   className="p-3 rounded-md border space-y-2 cursor-pointer transition-colors"
                   data-testid={`previous-ticket-${pt.id}`}
                   onClick={() => {
-                    if (ticket) {
-                      setOriginTicketId(params.id);
-                      setOriginTicketSubject(ticket.subject);
-                    }
                     setHistoryOpen(false);
-                    setLocation(`/tickets/${pt.id}`);
+                    const fromParams = ticket ? `?from=${params.id}&fromSubject=${encodeURIComponent(ticket.subject)}` : "";
+                    setLocation(`/tickets/${pt.id}${fromParams}`);
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">
