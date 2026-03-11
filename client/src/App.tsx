@@ -69,7 +69,7 @@ function PageTransition({ children }: { children: React.ReactNode }) {
   }, [location]);
 
   return (
-    <div key={location} className={animClass}>
+    <div key={location} className={`${animClass} flex-1 min-h-0 flex flex-col`}>
       {children}
     </div>
   );
@@ -121,7 +121,7 @@ function AuthenticatedLayout() {
           <header className="relative flex items-center flex-shrink-0 px-3 py-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.625rem)] border-b bg-muted min-h-[3rem]">
             <div className="z-10">
               {isMobile ? (
-                <Link href="/" className="flex items-center gap-1.5 no-underline tap-interactive rounded-lg px-2.5 py-1.5 bg-primary/10 hover:bg-primary/15 transition-colors" data-testid="link-header-dashboard">
+                <Link href="/" className="flex items-center gap-1.5 no-underline tap-interactive rounded-lg px-2.5 py-1.5 bg-primary/10 dark:bg-primary/20 hover:bg-primary/15 dark:hover:bg-primary/30 transition-colors" data-testid="link-header-dashboard">
                   <Home className="w-4 h-4 text-primary" />
                   <span className="text-xs font-semibold text-primary">Dashboard</span>
                 </Link>
