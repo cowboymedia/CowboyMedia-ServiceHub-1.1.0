@@ -26,8 +26,8 @@ import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw,
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
-import { Download } from "lucide-react";
-import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory } from "@shared/schema";
+import { Download, ImagePlus, X as XIcon } from "lucide-react";
+import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory, Download as DownloadItem } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -2546,6 +2546,255 @@ const LOG_CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: 
   report: { label: "Report", color: "bg-cyan-500/10 text-cyan-500", icon: FileText },
 };
 
+function DownloadsTab({ canManage = true }: { canManage?: boolean }) {
+  const isMobile = useIsMobile();
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<DownloadItem | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [downloaderCode, setDownloaderCode] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+
+  const { data: downloads, isLoading } = useQuery<DownloadItem[]>({
+    queryKey: ["/api/downloads"],
+  });
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setDownloaderCode("");
+    setDownloadUrl("");
+    setImageFile(null);
+    setImagePreview(null);
+    setRemoveImage(false);
+    setEditItem(null);
+  };
+
+  const openAddDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: DownloadItem) => {
+    setEditItem(item);
+    setTitle(item.title);
+    setDescription(item.description);
+    setDownloaderCode(item.downloaderCode);
+    setDownloadUrl(item.downloadUrl);
+    setImageFile(null);
+    setImagePreview(item.imageUrl || null);
+    setRemoveImage(false);
+    setDialogOpen(true);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setRemoveImage(false);
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setRemoveImage(true);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("downloaderCode", downloaderCode);
+      formData.append("downloadUrl", downloadUrl);
+      if (imageFile) formData.append("image", imageFile);
+      const res = await fetch("/api/admin/downloads", { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) { const err = await res.json().catch(() => ({ message: "Request failed" })); throw new Error(err.message); }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
+      setDialogOpen(false);
+      resetForm();
+      toast({ title: "Download created" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editItem) return;
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("downloaderCode", downloaderCode);
+      formData.append("downloadUrl", downloadUrl);
+      if (imageFile) formData.append("image", imageFile);
+      if (removeImage) formData.append("removeImage", "true");
+      const res = await fetch(`/api/admin/downloads/${editItem.id}`, { method: "PATCH", body: formData, credentials: "include" });
+      if (!res.ok) { const err = await res.json().catch(() => ({ message: "Request failed" })); throw new Error(err.message); }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
+      setDialogOpen(false);
+      resetForm();
+      toast({ title: "Download updated" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/downloads/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/downloads"] });
+      toast({ title: "Download deleted" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!title.trim() || !description.trim() || !downloaderCode.trim() || !downloadUrl.trim()) {
+      toast({ title: "All fields are required", variant: "destructive" });
+      return;
+    }
+    if (editItem) {
+      updateMutation.mutate();
+    } else {
+      createMutation.mutate();
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="font-semibold">Downloads ({downloads?.length || 0})</h3>
+        {canManage && (
+          <Button size="sm" onClick={openAddDialog} data-testid="button-add-download">
+            <Plus className="w-4 h-4 mr-1" /> Add Download
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } else setDialogOpen(true); }}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[85vh] overflow-y-auto" data-testid="dialog-download-form">
+          <DialogHeader>
+            <DialogTitle>{editItem ? "Edit Download" : "Add Download"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Title</label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Download title" data-testid="input-download-title" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Description</label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this download?" rows={3} data-testid="input-download-description" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Downloader Code</label>
+              <Input value={downloaderCode} onChange={(e) => setDownloaderCode(e.target.value)} placeholder="e.g. ABC-123" data-testid="input-download-code" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Download URL</label>
+              <Input value={downloadUrl} onChange={(e) => setDownloadUrl(e.target.value)} placeholder="https://..." data-testid="input-download-url" />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Thumbnail Image</label>
+              {imagePreview ? (
+                <div className="relative">
+                  <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded-md" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1"
+                    data-testid="button-remove-thumbnail"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/50 transition-colors" data-testid="label-upload-thumbnail">
+                  <ImagePlus className="w-6 h-6 text-muted-foreground mb-1" />
+                  <span className="text-xs text-muted-foreground">Click to upload</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                </label>
+              )}
+            </div>
+            <Button className="w-full" disabled={isPending} onClick={handleSubmit} data-testid="button-submit-download">
+              {isPending ? "Saving..." : editItem ? "Save Changes" : "Create Download"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {isLoading ? (
+        <Skeleton className="h-40" />
+      ) : !downloads || downloads.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <Download className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">No downloads yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {downloads.map((dl) => (
+            <Card key={dl.id} data-testid={`card-admin-download-${dl.id}`}>
+              <CardContent className="p-3">
+                <div className="flex items-start gap-3">
+                  {dl.imageUrl ? (
+                    <img src={dl.imageUrl} alt={dl.title} className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Download className="w-6 h-6 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{dl.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{dl.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">{dl.downloaderCode}</p>
+                  </div>
+                  {canManage && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEditDialog(dl)} data-testid={`button-edit-download-${dl.id}`}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" data-testid={`button-delete-download-${dl.id}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-sm">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Download?</AlertDialogTitle>
+                            <AlertDialogDescription>This will permanently remove "{dl.title}". This cannot be undone.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(dl.id)} data-testid={`button-confirm-delete-download-${dl.id}`}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LogsTab() {
   const [category, setCategory] = useState<string>("");
   const [searchInput, setSearchInput] = useState("");
@@ -3539,6 +3788,7 @@ const TILE_PERM_MAP: Record<string, string> = {
   "service-updates": "service_updates.view",
   "reports-requests": "reports.view",
   "email-templates": "email_templates.view",
+  "downloads": "downloads.view",
   "support-tickets": "support_tickets",
   "admin-chat": "admin_chat",
   "logs": "logs.view",
@@ -3554,6 +3804,7 @@ const TILE_MANAGE_MAP: Record<string, string> = {
   "service-updates": "service_updates.manage",
   "reports-requests": "reports.manage",
   "email-templates": "email_templates.manage",
+  "downloads": "downloads.manage",
 };
 
 export default function AdminPortal() {
@@ -3599,6 +3850,7 @@ export default function AdminPortal() {
     { key: "service-updates", label: "Service Updates", icon: RefreshCw, color: "text-teal-500", bg: "bg-teal-500/10" },
     { key: "reports-requests", label: "Reports/Requests", icon: FileText, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     { key: "email-templates", label: "Email Templates", icon: MailOpen, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { key: "downloads", label: "Downloads", icon: Download, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { key: "support-tickets", label: "Support Tickets", icon: LifeBuoy, color: "text-sky-500", bg: "bg-sky-500/10", navigateTo: "/tickets" },
     { key: "admin-chat", label: "Admin Chat", icon: MessageSquare, color: "text-pink-500", bg: "bg-pink-500/10" },
     { key: "logs", label: "Logs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" },
@@ -3628,6 +3880,7 @@ export default function AdminPortal() {
       case "service-updates": return <ServiceUpdatesTab canManage={canManageSection("service-updates")} />;
       case "reports-requests": return <ReportsRequestsTab canManage={canManageSection("reports-requests")} />;
       case "email-templates": return <EmailTemplatesTab canManage={canManageSection("email-templates")} />;
+      case "downloads": return <DownloadsTab canManage={canManageSection("downloads")} />;
       case "admin-chat": return <AdminChatTab />;
       case "logs": return <LogsTab />;
       case "admin-management": return isMasterAdmin ? <AdminManagementTab /> : null;

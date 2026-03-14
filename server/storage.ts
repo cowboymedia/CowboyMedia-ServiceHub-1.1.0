@@ -23,7 +23,8 @@ import {
   type BroadcastRecipient, type InsertBroadcastRecipient,
   type TicketTransfer, type InsertTicketTransfer,
   type AdminActivityLog, type InsertAdminActivityLog,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs,
+  type Download, type InsertDownload,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -154,6 +155,12 @@ export interface IStorage {
   getPendingTransfersForAdmin(adminId: string): Promise<TicketTransfer[]>;
   getPendingTransferByTicketId(ticketId: string): Promise<TicketTransfer | undefined>;
   updateTicketTransfer(id: string, data: Partial<TicketTransfer>): Promise<TicketTransfer | undefined>;
+
+  getAllDownloads(): Promise<Download[]>;
+  getDownload(id: string): Promise<Download | undefined>;
+  createDownload(data: InsertDownload): Promise<Download>;
+  updateDownload(id: string, data: Partial<Download>): Promise<Download | undefined>;
+  deleteDownload(id: string): Promise<void>;
 
   createActivityLog(data: InsertAdminActivityLog): Promise<AdminActivityLog>;
   getActivityLogs(filters: { category?: string; action?: string; search?: string; page?: number; limit?: number }): Promise<{ logs: AdminActivityLog[]; total: number }>;
@@ -791,6 +798,29 @@ export class DatabaseStorage implements IStorage {
   async getActivityLog(id: string): Promise<AdminActivityLog | undefined> {
     const [log] = await db.select().from(adminActivityLogs).where(eq(adminActivityLogs.id, id));
     return log;
+  }
+
+  async getAllDownloads(): Promise<Download[]> {
+    return db.select().from(downloads).orderBy(desc(downloads.createdAt));
+  }
+
+  async getDownload(id: string): Promise<Download | undefined> {
+    const [dl] = await db.select().from(downloads).where(eq(downloads.id, id));
+    return dl;
+  }
+
+  async createDownload(data: InsertDownload): Promise<Download> {
+    const [dl] = await db.insert(downloads).values(data).returning();
+    return dl;
+  }
+
+  async updateDownload(id: string, data: Partial<Download>): Promise<Download | undefined> {
+    const [dl] = await db.update(downloads).set(data).where(eq(downloads.id, id)).returning();
+    return dl;
+  }
+
+  async deleteDownload(id: string): Promise<void> {
+    await db.delete(downloads).where(eq(downloads.id, id));
   }
 }
 

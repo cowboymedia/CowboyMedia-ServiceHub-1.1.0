@@ -6,7 +6,7 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema } from "@shared/schema";
+import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, downloads, insertDownloadSchema } from "@shared/schema";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -2570,6 +2570,61 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         (log as any).recipientName = recipient?.fullName || null;
       }
       res.json(log);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/downloads", requireAuth, async (_req, res) => {
+    try {
+      const result = await storage.getAllDownloads();
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/downloads", requirePermission("downloads.view", "downloads.manage"), upload.single("image"), async (req, res) => {
+    try {
+      const parsed = insertDownloadSchema.omit({ imageUrl: true }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors.map(e => e.message).join(", ") });
+      }
+      const imageUrl = req.file ? await saveUploadedFile(req.file) : null;
+      const dl = await storage.createDownload({ ...parsed.data, imageUrl });
+      res.json(dl);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/downloads/:id", requirePermission("downloads.view", "downloads.manage"), upload.single("image"), async (req, res) => {
+    try {
+      const { title, description, downloaderCode, downloadUrl, removeImage } = req.body;
+      const updateData: any = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (downloaderCode !== undefined) updateData.downloaderCode = downloaderCode;
+      if (downloadUrl !== undefined) updateData.downloadUrl = downloadUrl;
+      if (req.file) {
+        updateData.imageUrl = await saveUploadedFile(req.file);
+      } else if (removeImage === "true") {
+        updateData.imageUrl = null;
+      }
+      const dl = await storage.updateDownload(req.params.id, updateData);
+      if (!dl) return res.status(404).json({ message: "Download not found" });
+      res.json(dl);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/admin/downloads/:id", requirePermission("downloads.view", "downloads.manage"), async (req, res) => {
+    try {
+      const existing = await storage.getDownload(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Download not found" });
+      await storage.deleteDownload(req.params.id);
+      res.json({ message: "Deleted" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

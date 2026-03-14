@@ -49,6 +49,14 @@ The frontend utilizes React with Vite, styled using TailwindCSS and Shadcn UI fo
 - Push logs store the notification payload (title, body, url)
 - Frontend `LogsTab` component with category filter, search, pagination, and collapsible detail view
 
+### Downloads
+- `downloads` table: id, title, description, downloaderCode, downloadUrl, imageUrl (optional thumbnail), createdAt
+- Admin management via "Downloads" tile in Admin Portal (CRUD with thumbnail upload)
+- Customer-facing `/downloads` page with card grid; clicking opens detail dialog with title, description, downloader code (with copy button), and download link
+- Admin routes gated by `downloads.view` / `downloads.manage` permissions
+- Navigation: sidebar (between Report/Request and Settings), bottom nav More sheet, route registered in App.tsx
+- Relevant files: `shared/schema.ts`, `server/storage.ts`, `server/routes.ts`, `client/src/pages/downloads-page.tsx`, `client/src/pages/admin-portal.tsx` (DownloadsTab), `client/src/components/bottom-nav.tsx`, `client/src/components/app-sidebar.tsx`
+
 ### Email Template Protection
 - `customized` boolean column on `emailTemplates` table tracks admin-edited templates
 - The seeder (`upsertEmailTemplate`) skips body/subject overwrites on customized templates but still syncs new `availableVariables`

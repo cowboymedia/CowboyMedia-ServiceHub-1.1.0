@@ -42,6 +42,7 @@ import MessagesPage from "@/pages/messages-page";
 import ReportRequestPage from "@/pages/report-request-page";
 import ServiceUpdatesPage from "@/pages/service-updates-page";
 import ServiceDetail from "@/pages/service-detail";
+import DownloadsPage from "@/pages/downloads-page";
 
 function getRouteDepth(path: string): number {
   if (path === "/") return 0;
@@ -92,6 +93,7 @@ function AppRouter() {
         <Route path="/messages" component={MessagesPage} />
         <Route path="/service-updates" component={ServiceUpdatesPage} />
         <Route path="/report-request" component={ReportRequestPage} />
+        <Route path="/downloads" component={DownloadsPage} />
         <Route path="/admin" component={AdminPortal} />
         <Route component={NotFound} />
       </Switch>
