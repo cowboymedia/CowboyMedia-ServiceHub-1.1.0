@@ -6,7 +6,7 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, downloads, insertDownloadSchema } from "@shared/schema";
+import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, insertDownloadSchema } from "@shared/schema";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
