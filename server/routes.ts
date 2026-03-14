@@ -2601,7 +2601,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
   app.patch("/api/admin/downloads/:id", requirePermission("downloads.view", "downloads.manage"), upload.single("image"), async (req, res) => {
     try {
       const { title, description, downloaderCode, downloadUrl, removeImage } = req.body;
-      const updateData: any = {};
+      const updateData: Partial<{ title: string; description: string; downloaderCode: string; downloadUrl: string; imageUrl: string | null }> = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
       if (downloaderCode !== undefined) updateData.downloaderCode = downloaderCode;
