@@ -36,9 +36,9 @@ export default function DownloadsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
+            <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
       ) : !downloads || downloads.length === 0 ? (
@@ -48,7 +48,7 @@ export default function DownloadsPage() {
           <p className="text-sm text-muted-foreground mt-1">Check back later for new downloads</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="space-y-2">
           {downloads.map((dl) => (
             <Card
               key={dl.id}
@@ -56,28 +56,18 @@ export default function DownloadsPage() {
               onClick={() => { setSelectedDownload(dl); setCopied(false); }}
               data-testid={`card-download-${dl.id}`}
             >
-              <CardContent className="p-0">
-                {dl.imageUrl && (
-                  <div className="w-full h-32 sm:h-36 overflow-hidden rounded-t-xl bg-muted">
-                    <img
-                      src={dl.imageUrl}
-                      alt={dl.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
-                <div className="p-4">
-                  <div className="flex items-start gap-3">
-                    {!dl.imageUrl && (
-                      <div className="rounded-full p-2.5 bg-primary/10 flex-shrink-0">
-                        <Download className="w-5 h-5 text-primary" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm truncate" data-testid={`text-download-title-${dl.id}`}>{dl.title}</h3>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{dl.description}</p>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  {dl.imageUrl ? (
+                    <img src={dl.imageUrl} alt={dl.title} className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Download className="w-6 h-6 text-primary" />
                     </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm truncate" data-testid={`text-download-title-${dl.id}`}>{dl.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{dl.description}</p>
                   </div>
                 </div>
               </CardContent>
@@ -91,16 +81,16 @@ export default function DownloadsPage() {
           {selectedDownload && (
             <>
               <DialogHeader>
-                {selectedDownload.imageUrl && (
-                  <div className="w-full h-40 overflow-hidden rounded-lg bg-muted -mt-2 mb-3">
-                    <img
-                      src={selectedDownload.imageUrl}
-                      alt={selectedDownload.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                <DialogTitle data-testid="text-dialog-download-title">{selectedDownload.title}</DialogTitle>
+                <div className="flex items-center gap-3">
+                  {selectedDownload.imageUrl ? (
+                    <img src={selectedDownload.imageUrl} alt={selectedDownload.title} className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Download className="w-6 h-6 text-primary" />
+                    </div>
+                  )}
+                  <DialogTitle className="text-left" data-testid="text-dialog-download-title">{selectedDownload.title}</DialogTitle>
+                </div>
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground" data-testid="text-dialog-download-desc">{selectedDownload.description}</p>
