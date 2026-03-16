@@ -61,9 +61,6 @@ export function AppSidebar() {
   });
   const contentCounts = contentNotifData ?? {};
 
-  const totalBadge = unreadTicketCount + unreadCount + unreadReportCount +
-    Object.values(contentCounts).reduce((sum, c) => sum + c, 0);
-
   const handleNavClick = () => {
     if (isMobile) {
       requestAnimationFrame(() => {
