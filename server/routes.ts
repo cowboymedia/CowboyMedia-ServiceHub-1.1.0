@@ -1441,7 +1441,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           broadcast({ type: "service_updated", serviceId: alert.serviceId });
         }
         const isResolved = updateData.status === "resolved";
-        const impactLabels: Record<string, string> = { degraded: "Degraded", outage: "Outage", maintenance: "Maintenance" };
+        const impactLabels: Record<string, string> = { operational: "Operational", degraded: "Degraded", outage: "Outage", maintenance: "Maintenance" };
         const hasImpactChange = !isResolved && serviceImpact && serviceImpact !== "no_change";
         const impactLabel = hasImpactChange ? impactLabels[serviceImpact] || serviceImpact : null;
         const pushTitle = isResolved

@@ -1042,6 +1042,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
                     <FormControl><SelectTrigger data-testid="select-update-service-impact"><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
                       <SelectItem value="no_change">No Change</SelectItem>
+                      <SelectItem value="operational">Operational</SelectItem>
                       <SelectItem value="degraded">Degraded Performance</SelectItem>
                       <SelectItem value="outage">Full Outage</SelectItem>
                       <SelectItem value="maintenance">Maintenance</SelectItem>
