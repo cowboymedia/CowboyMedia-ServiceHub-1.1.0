@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { subscribeToPush, isPushSupported, isSubscribedToPush } from "@/lib/push-notifications";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
 import { PullToRefresh } from "@/components/pull-to-refresh";
+import { useAppBadge } from "@/hooks/use-app-badge";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
@@ -108,6 +109,7 @@ function AuthenticatedLayout() {
   const isAdminPortal = /^\/admin/.test(location);
   const scrollRef = useRef<HTMLDivElement>(null);
   useScrollRestore(scrollRef);
+  useAppBadge();
 
   const style = {
     "--sidebar-width": "16rem",
