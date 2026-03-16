@@ -657,6 +657,53 @@ export async function registerRoutes(
             admins = admins.filter(a => a.role === "master_admin" || (a.adminRoleId && category.assignedRoleIds!.includes(a.adminRoleId)));
           }
         }
+
+        const isAdminClose = user.role === "admin" || user.role === "master_admin";
+        const closedByLabel = isAdminClose ? `${user.fullName} (Admin)` : `${user.fullName} (Customer)`;
+        const openedDate = format(new Date(ticket.createdAt), "MMM d, yyyy 'at' h:mm a");
+        const closedDate = format(new Date(), "MMM d, yyyy 'at' h:mm a");
+
+        let conversationHtml = "";
+        let resolutionHtml = "";
+        try {
+          const allMessages = await storage.getTicketMessages(ticket.id);
+          const senderIds = [...new Set(allMessages.map(m => m.senderId))];
+          const senderMap = new Map<string, string>();
+          await Promise.all(senderIds.map(async (id) => {
+            const sender = await storage.getUser(id);
+            if (sender) senderMap.set(id, sender.fullName);
+          }));
+          conversationHtml = allMessages.map(m => {
+            const name = escapeHtml(senderMap.get(m.senderId) || "Unknown");
+            const time = format(new Date(m.createdAt), "MMM d, yyyy 'at' h:mm a");
+            const msgText = escapeHtml(m.message || "").replace(/\n/g, "<br/>");
+            return `<div style="margin-bottom:12px;padding:8px;border-left:3px solid #e5e7eb;">
+<p style="margin:0;font-size:13px;"><strong>${name}</strong> <span style="color:#6b7280;font-size:12px;">${time}</span></p>
+<p style="margin:4px 0 0 0;font-size:14px;">${msgText}</p>
+${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}" style="color:#3b82f6;font-size:12px;">View Attachment</a></p>` : ""}
+</div>`;
+          }).join("");
+
+          if (isAdminClose) {
+            resolutionHtml = `<div style="margin:16px 0;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;">
+<h3 style="margin:0 0 8px 0;font-size:15px;color:#166534;">Resolution Summary</h3>
+<p style="margin:0;font-size:14px;color:#15803d;">${escapeHtml(resolutionNote || "").replace(/\n/g, "<br/>")}</p>
+</div>`;
+          } else if (resolutionNote && resolutionNote.trim() && resolutionNote !== "Customer closed without providing a closing description") {
+            resolutionHtml = `<div style="margin:16px 0;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;">
+<h3 style="margin:0 0 8px 0;font-size:15px;color:#1e40af;">Customer's Closing Note</h3>
+<p style="margin:0;font-size:14px;color:#1d4ed8;">${escapeHtml(resolutionNote).replace(/\n/g, "<br/>")}</p>
+</div>`;
+          } else {
+            resolutionHtml = `<div style="margin:16px 0;padding:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;">
+<h3 style="margin:0 0 8px 0;font-size:15px;color:#92400e;">Closing Note</h3>
+<p style="margin:0;font-size:14px;color:#a16207;">Customer closed the ticket without providing a closing description.</p>
+</div>`;
+          }
+        } catch (transcriptBuildErr) {
+          console.error("Transcript build error:", transcriptBuildErr);
+        }
+
         for (const admin of admins) {
           sendPushToUser(admin.id, {
             title: "Ticket Closed",
@@ -674,49 +721,26 @@ export async function registerRoutes(
             sendTemplatedEmail(admin.email, "admin_ticket_closed", {
               customer_name: customer.fullName,
               customer_username: customer.username,
-              customer_email: customer.email,
-              ticket_subject: ticket.subject,
+              customer_email: customer.email || "",
+              ticket_subject: escapeHtml(ticket.subject),
+              ticket_description: escapeHtml(ticket.description),
+              opened_date: openedDate,
+              closed_date: closedDate,
+              closed_by: closedByLabel,
+              resolution_summary: resolutionHtml,
+              conversation: conversationHtml,
             }, admin.fullName);
           }
         }
 
         if (customer?.email && customer.emailNotifications !== false) {
           try {
-            const allMessages = await storage.getTicketMessages(ticket.id);
-            const senderIds = [...new Set(allMessages.map(m => m.senderId))];
-            const senderMap = new Map<string, string>();
-            await Promise.all(senderIds.map(async (id) => {
-              const sender = await storage.getUser(id);
-              if (sender) senderMap.set(id, sender.fullName);
-            }));
-            const conversationHtml = allMessages.map(m => {
-              const name = escapeHtml(senderMap.get(m.senderId) || "Unknown");
-              const time = format(new Date(m.createdAt), "MMM d, yyyy 'at' h:mm a");
-              const msgText = escapeHtml(m.message || "").replace(/\n/g, "<br/>");
-              return `<div style="margin-bottom:12px;padding:8px;border-left:3px solid #e5e7eb;">
-<p style="margin:0;font-size:13px;"><strong>${name}</strong> <span style="color:#6b7280;font-size:12px;">${time}</span></p>
-<p style="margin:4px 0 0 0;font-size:14px;">${msgText}</p>
-${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}" style="color:#3b82f6;font-size:12px;">View Attachment</a></p>` : ""}
-</div>`;
-            }).join("");
-            const isCustomerClose = !(user.role === "admin" || user.role === "master_admin");
-            const resolutionLabel = isCustomerClose ? "Customer's Closing Note" : "Resolution Summary";
-            const resolutionBg = isCustomerClose ? "#eff6ff" : "#f0fdf4";
-            const resolutionBorder = isCustomerClose ? "#bfdbfe" : "#bbf7d0";
-            const resolutionHeadColor = isCustomerClose ? "#1e40af" : "#166534";
-            const resolutionTextColor = isCustomerClose ? "#1d4ed8" : "#15803d";
-            const resolutionHtml = resolutionNote
-              ? `<div style="margin:16px 0;padding:12px;background:${resolutionBg};border:1px solid ${resolutionBorder};border-radius:6px;">
-<h3 style="margin:0 0 8px 0;font-size:15px;color:${resolutionHeadColor};">${resolutionLabel}</h3>
-<p style="margin:0;font-size:14px;color:${resolutionTextColor};">${escapeHtml(resolutionNote).replace(/\n/g, "<br/>")}</p>
-</div>`
-              : "";
             sendTemplatedEmail(customer.email, "ticket_transcript", {
               ticket_subject: escapeHtml(ticket.subject),
               ticket_description: escapeHtml(ticket.description),
               customer_name: customer.fullName,
-              opened_date: format(new Date(ticket.createdAt), "MMM d, yyyy 'at' h:mm a"),
-              closed_date: format(new Date(), "MMM d, yyyy 'at' h:mm a"),
+              opened_date: openedDate,
+              closed_date: closedDate,
               resolution_summary: resolutionHtml,
               conversation: conversationHtml,
             }, customer.fullName);

@@ -194,15 +194,24 @@ export const DEFAULT_EMAIL_TEMPLATES = [
   },
   {
     templateKey: "admin_ticket_closed",
-    name: "Ticket Closed (Admin)",
+    name: "Ticket Closed - Full Transcript (Admin)",
     subject: "Ticket Closed: {ticket_subject}",
-    body: `<h2>Ticket Closed</h2>
-<p>A support ticket has been closed by the customer.</p>
+    body: `<h2>Support Ticket Closed</h2>
+<p>A support ticket has been closed. Below is the full summary and conversation transcript.</p>
 <p><strong>Customer:</strong> {customer_name} (@{customer_username})</p>
 <p><strong>Email:</strong> {customer_email}</p>
-<p><strong>Subject:</strong> {ticket_subject}</p>`,
-    availableVariables: ["customer_name", "customer_username", "customer_email", "ticket_subject"],
-    description: "Sent to all admins when a customer closes their ticket",
+<p><strong>Closed by:</strong> {closed_by}</p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;" />
+<p><strong>Ticket:</strong> {ticket_subject}</p>
+<p><strong>Description:</strong> {ticket_description}</p>
+<p><strong>Opened:</strong> {opened_date}</p>
+<p><strong>Closed:</strong> {closed_date}</p>
+{resolution_summary}
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;" />
+<h3>Conversation</h3>
+{conversation}`,
+    availableVariables: ["customer_name", "customer_username", "customer_email", "ticket_subject", "ticket_description", "opened_date", "closed_date", "closed_by", "resolution_summary", "conversation"],
+    description: "Sent to all admins when a ticket is closed, includes the full conversation transcript",
   },
   {
     templateKey: "customer_ticket_claimed",

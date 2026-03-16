@@ -138,40 +138,91 @@ export default function TicketDetail() {
     enabled: isAdmin && !!ticket?.customerId && historyOpen,
   });
 
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
+  const userIdRef = useRef<string | null>(null);
+  const userNameRef = useRef<string | null>(null);
+  userIdRef.current = user?.id ?? null;
+  userNameRef.current = user?.fullName ?? null;
 
-    ws.onopen = () => {
-      if (user) {
-        ws.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: user.id }));
+  useEffect(() => {
+    let disposed = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function connect() {
+      if (disposed) return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (userIdRef.current) {
+          ws!.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current }));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "ticket_message" && data.ticketId === params.id) {
+            queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
+            setTypingUser(null);
+          }
+          if (data.type === "typing" && data.ticketId === params.id && data.userId !== userIdRef.current) {
+            setTypingUser(data.userName);
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 3000);
+          }
+          if (data.type === "ticket_updated" && data.ticket?.id === params.id) {
+            queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id] });
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        wsRef.current = null;
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, 2000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const current = wsRef.current;
+        if (current && current.readyState === WebSocket.OPEN && userIdRef.current) {
+          current.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current }));
+        } else if (!current || current.readyState !== WebSocket.OPEN) {
+          connect();
+        }
       }
     };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "ticket_message" && data.ticketId === params.id) {
-          queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
-          setTypingUser(null);
-        }
-        if (data.type === "typing" && data.ticketId === params.id && data.userId !== user?.id) {
-          setTypingUser(data.userName);
-          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-          typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 3000);
-        }
-      } catch {}
-    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      if (user && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "left_ticket", ticketId: params.id, userId: user.id }));
+      disposed = true;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws && ws.readyState === WebSocket.OPEN && userIdRef.current) {
+        ws.send(JSON.stringify({ type: "left_ticket", ticketId: params.id, userId: userIdRef.current }));
       }
-      ws.close();
+      ws?.close();
+      wsRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [params.id, user?.id]);
+  }, [params.id]);
+
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN && user?.id) {
+      ws.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: user.id }));
+    }
+  }, [user?.id, params.id]);
 
   const cleanupBodyStyles = () => {
     document.body.style.removeProperty("pointer-events");
@@ -203,8 +254,8 @@ export default function TicketDetail() {
     if (now - lastTypingSentRef.current < 2000) return;
     lastTypingSentRef.current = now;
     const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN && user) {
-      ws.send(JSON.stringify({ type: "typing", ticketId: params.id, userId: user.id, userName: user.fullName }));
+    if (ws && ws.readyState === WebSocket.OPEN && userIdRef.current && userNameRef.current) {
+      ws.send(JSON.stringify({ type: "typing", ticketId: params.id, userId: userIdRef.current, userName: userNameRef.current }));
     }
   };
 
