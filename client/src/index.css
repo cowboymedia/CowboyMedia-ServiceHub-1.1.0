@@ -7,26 +7,13 @@ html {
 }
 
 body {
-  padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   overscroll-behavior: none;
 }
 
 @media (display-mode: standalone) {
-  html {
-    overflow: hidden;
-    height: 100%;
-    overscroll-behavior: none;
-  }
-
   body {
-    overflow: hidden;
-    height: 100%;
     overscroll-behavior: none;
-  }
-
-  #root {
-    height: 100%;
-    overflow: hidden;
   }
 }
 

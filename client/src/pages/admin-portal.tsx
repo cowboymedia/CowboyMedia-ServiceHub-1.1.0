@@ -3545,7 +3545,6 @@ function AdminChatTab() {
   const [chatFile, setChatFile] = useState<File | null>(null);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const adminChatScrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
 
@@ -3668,10 +3667,7 @@ function AdminChatTab() {
   }, [activeThreadId, user?.id]);
 
   useEffect(() => {
-    const container = adminChatScrollRef.current;
-    if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendTypingEvent = () => {
@@ -3783,7 +3779,7 @@ function AdminChatTab() {
                 )}
               </div>
             </div>
-            <div ref={adminChatScrollRef} className="flex-1 p-3 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="flex-1 p-3 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
               <div className="space-y-3">
                 {messages.map(msg => {
                   const isMe = msg.senderId === user?.id;
@@ -3844,11 +3840,6 @@ function AdminChatTab() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                      }
-                    }}
-                    onBlur={() => {
-                      if (window.matchMedia('(display-mode: standalone)').matches && window.scrollY !== 0) {
-                        window.scrollTo(0, 0);
                       }
                     }}
                     data-testid="input-chat-message"

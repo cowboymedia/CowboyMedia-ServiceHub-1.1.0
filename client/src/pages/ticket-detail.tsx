@@ -84,7 +84,6 @@ export default function TicketDetail() {
   const originTicketId = searchParams.get("from");
   const originTicketSubject = searchParams.get("fromSubject");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -247,10 +246,7 @@ export default function TicketDetail() {
   }, [params.id]);
 
   useEffect(() => {
-    const container = chatScrollRef.current;
-    if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendTypingEvent = () => {
@@ -722,7 +718,7 @@ export default function TicketDetail() {
 
       <Card className="flex-1 flex flex-col min-h-0">
         <CardContent className="flex-1 flex flex-col min-h-0 p-0">
-          <div ref={chatScrollRef} className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
+          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
             <div className="p-4 border-b bg-card">
               <p className="text-sm" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} data-testid="text-ticket-description">{ticket.description}</p>
               {ticket.imageUrl && (
@@ -880,11 +876,6 @@ export default function TicketDetail() {
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") e.preventDefault();
-                  }}
-                  onBlur={() => {
-                    if (window.matchMedia('(display-mode: standalone)').matches && window.scrollY !== 0) {
-                      window.scrollTo(0, 0);
-                    }
                   }}
                   placeholder="Type a message..."
                   className="flex-1"
