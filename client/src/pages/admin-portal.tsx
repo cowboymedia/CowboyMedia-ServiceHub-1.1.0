@@ -3545,6 +3545,7 @@ function AdminChatTab() {
   const [chatFile, setChatFile] = useState<File | null>(null);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const adminChatScrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
 
@@ -3667,7 +3668,10 @@ function AdminChatTab() {
   }, [activeThreadId, user?.id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = adminChatScrollRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   const sendTypingEvent = () => {
@@ -3779,7 +3783,7 @@ function AdminChatTab() {
                 )}
               </div>
             </div>
-            <div className="flex-1 p-3 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div ref={adminChatScrollRef} className="flex-1 p-3 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
               <div className="space-y-3">
                 {messages.map(msg => {
                   const isMe = msg.senderId === user?.id;
