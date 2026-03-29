@@ -1,7 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { storage } from './storage';
 
-const FROM_EMAIL = 'noreply@cowboymedia.net';
+const FROM_EMAIL = { email: 'noreply@cowboymedia.net', name: 'CowboyMedia' };
 
 function getSendGridClient() {
   const apiKey = process.env.SENDGRID_API_KEY;
