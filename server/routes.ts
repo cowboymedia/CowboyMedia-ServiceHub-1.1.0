@@ -296,6 +296,13 @@ export async function registerRoutes(
 ): Promise<Server> {
   const PgStore = ConnectPgSimple(session);
 
+  pool.query("UPDATE users SET username = TRIM(username) WHERE username != TRIM(username)")
+    .then((r: any) => { if (r.rowCount > 0) console.log(`[Startup] Trimmed whitespace from ${r.rowCount} username(s)`); })
+    .catch((e: any) => console.error("[Startup] Failed to trim usernames:", e.message));
+  pool.query("UPDATE users SET full_name = TRIM(full_name) WHERE full_name != TRIM(full_name)")
+    .then((r: any) => { if (r.rowCount > 0) console.log(`[Startup] Trimmed whitespace from ${r.rowCount} full_name(s)`); })
+    .catch((e: any) => console.error("[Startup] Failed to trim full_names:", e.message));
+
   app.set("trust proxy", 1);
 
   app.use(
@@ -332,7 +339,9 @@ export async function registerRoutes(
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { username, password, email, fullName } = req.body;
+      const username = req.body.username?.trim();
+      const fullName = req.body.fullName?.trim();
+      const { password, email } = req.body;
       const existing = await storage.getUserByUsername(username);
       if (existing) {
         return res.status(400).json({ message: "Username already taken" });
@@ -371,7 +380,8 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const username = req.body.username?.trim();
+      const { password } = req.body;
       const user = await storage.getUserByUsername(username);
       if (!user || !(await verifyPassword(password, user.password))) {
         return res.status(401).json({ message: "Invalid credentials" });
@@ -1284,7 +1294,9 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.post("/api/admin/users", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
-      const { username, password, email, fullName, role } = req.body;
+      const username = req.body.username?.trim();
+      const fullName = req.body.fullName?.trim();
+      const { password, email, role } = req.body;
       const existing = await storage.getUserByUsername(username);
       if (existing) return res.status(400).json({ message: "Username already taken" });
       const hashed = await hashPassword(password);
@@ -1298,7 +1310,10 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/admin/users/:id", requirePermission("users.view", "users.manage"), async (req, res) => {
     try {
-      const updated = await storage.updateUser(req.params.id, req.body);
+      const data = { ...req.body };
+      if (data.username) data.username = data.username.trim();
+      if (data.fullName) data.fullName = data.fullName.trim();
+      const updated = await storage.updateUser(req.params.id, data);
       if (!updated) return res.status(404).json({ message: "User not found" });
       const { password: _, ...safe } = updated;
       res.json(safe);
