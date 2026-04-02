@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,11 +41,23 @@ export default function AlertsPage() {
     queryKey: ["/api/services"],
   });
 
-  useEffect(() => {
+  const markAlertsRead = useCallback(() => {
     apiRequest("POST", "/api/content-notifications/mark-read", { category: "alerts" })
       .then(() => queryClient.invalidateQueries({ queryKey: ["/api/content-notifications/counts"] }))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    markAlertsRead();
+  }, [markAlertsRead]);
+
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === "visible") markAlertsRead();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+    return () => document.removeEventListener("visibilitychange", onVisChange);
+  }, [markAlertsRead]);
 
   const serviceMap = new Map(services?.map((s) => [s.id, s.name]) || []);
   const activeAlerts = alerts?.filter((a) => a.status !== "resolved") || [];

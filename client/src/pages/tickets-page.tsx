@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -126,11 +126,23 @@ export default function TicketsPage() {
     },
   });
 
-  useEffect(() => {
+  const markTicketsRead = useCallback(() => {
     apiRequest("POST", "/api/ticket-notifications/mark-read").then(() => {
       queryClient.invalidateQueries({ queryKey: ["/api/ticket-notifications/unread-count"] });
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    markTicketsRead();
+  }, [markTicketsRead]);
+
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === "visible") markTicketsRead();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+    return () => document.removeEventListener("visibilitychange", onVisChange);
+  }, [markTicketsRead]);
 
   const openTickets = tickets?.filter((t) => t.status === "open") || [];
   const closedTickets = tickets?.filter((t) => t.status === "closed") || [];

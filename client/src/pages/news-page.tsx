@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,11 +14,23 @@ export default function NewsPage() {
     queryKey: ["/api/news"],
   });
 
-  useEffect(() => {
+  const markNewsRead = useCallback(() => {
     apiRequest("POST", "/api/content-notifications/mark-read", { category: "news" })
       .then(() => queryClient.invalidateQueries({ queryKey: ["/api/content-notifications/counts"] }))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    markNewsRead();
+  }, [markNewsRead]);
+
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === "visible") markNewsRead();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+    return () => document.removeEventListener("visibilitychange", onVisChange);
+  }, [markNewsRead]);
 
   return (
     <div className="space-y-6">

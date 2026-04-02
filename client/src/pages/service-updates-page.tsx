@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -19,11 +19,23 @@ export default function ServiceUpdatesPage() {
   const [pendingUnlock, setPendingUnlock] = useState<string | null>(null);
   const [pendingAdminDelete, setPendingAdminDelete] = useState<string | null>(null);
 
-  useEffect(() => {
+  const markUpdatesRead = useCallback(() => {
     apiRequest("POST", "/api/content-notifications/mark-read", { category: "service-updates" })
       .then(() => queryClient.invalidateQueries({ queryKey: ["/api/content-notifications/counts"] }))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    markUpdatesRead();
+  }, [markUpdatesRead]);
+
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === "visible") markUpdatesRead();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+    return () => document.removeEventListener("visibilitychange", onVisChange);
+  }, [markUpdatesRead]);
 
   const { data: updates, isLoading } = useQuery<ServiceUpdate[]>({
     queryKey: ["/api/service-updates"],

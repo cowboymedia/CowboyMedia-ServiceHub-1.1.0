@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -138,10 +138,20 @@ export default function TicketDetail() {
     enabled: isAdmin && !!ticket?.customerId && historyOpen,
   });
 
+  const markTicketRead = useCallback(() => {
+    apiRequest("POST", "/api/ticket-notifications/mark-read").then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ticket-notifications/unread-count"] });
+    }).catch(() => {});
+  }, []);
+
   const userIdRef = useRef<string | null>(null);
   const userNameRef = useRef<string | null>(null);
   userIdRef.current = user?.id ?? null;
   userNameRef.current = user?.fullName ?? null;
+
+  useEffect(() => {
+    markTicketRead();
+  }, [params.id, markTicketRead]);
 
   useEffect(() => {
     let disposed = false;
@@ -166,6 +176,7 @@ export default function TicketDetail() {
           if (data.type === "ticket_message" && data.ticketId === params.id) {
             queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
             setTypingUser(null);
+            markTicketRead();
           }
           if (data.type === "typing" && data.ticketId === params.id && data.userId !== userIdRef.current) {
             setTypingUser(data.userName);
@@ -194,10 +205,11 @@ export default function TicketDetail() {
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
+        markTicketRead();
         const current = wsRef.current;
         if (current && current.readyState === WebSocket.OPEN && userIdRef.current) {
           current.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current }));
-        } else if (!current || current.readyState !== WebSocket.OPEN) {
+        } else if (!current || current.readyState === WebSocket.CLOSED) {
           connect();
         }
       }
