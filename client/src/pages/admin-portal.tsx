@@ -83,6 +83,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
   const [editEmailNotifications, setEditEmailNotifications] = useState(true);
   const [editSubscribedServices, setEditSubscribedServices] = useState<string[]>([]);
   const [newUserIds, setNewUserIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     apiRequest("GET", "/api/content-notifications/unread-references/admin-users")
@@ -201,10 +202,18 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
     );
   };
 
+  const filteredUsers = users?.filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return u.fullName.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="font-semibold">Users ({users?.length || 0})</h3>
+        <h3 className="font-semibold">Users ({filteredUsers?.length ?? 0}{searchQuery.trim() && users ? ` of ${users.length}` : ""})</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-add-user"><Plus className="w-4 h-4 mr-1" /> Add User</Button>
@@ -446,11 +455,105 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
         </DialogContent>
       </Dialog>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search users by name, username, or email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9 pr-9"
+          data-testid="input-search-users"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            data-testid="button-clear-search"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {isLoading ? (
-        <Skeleton className="h-40" />
+        isMobile ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-4 w-14 rounded-full" />
+                      </div>
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Skeleton className="h-3.5 w-3.5 rounded-full" />
+                      <Skeleton className="h-3.5 w-3.5 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2 pt-2 border-t">
+                    <Skeleton className="h-7 w-14" />
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-7 w-14" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Username</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Notifications</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded-full" />
+                        <Skeleton className="h-4 w-4 rounded-full" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Skeleton className="h-8 w-16" />
+                        <Skeleton className="h-8 w-16" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )
+      ) : filteredUsers?.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Search className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {searchQuery.trim() ? `No users matching "${searchQuery.trim()}"` : "No users found"}
+            </p>
+          </CardContent>
+        </Card>
       ) : isMobile ? (
         <div className="space-y-2">
-          {users?.map((u) => (
+          {filteredUsers?.map((u) => (
             <Card
               key={u.id}
               className="cursor-pointer active:bg-accent/50 transition-colors"
@@ -521,7 +624,7 @@ function UsersTab({ canManage = true }: { canManage?: boolean }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((u) => (
+              {filteredUsers?.map((u) => (
                 <TableRow
                   key={u.id}
                   className="cursor-pointer"

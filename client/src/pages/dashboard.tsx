@@ -189,7 +189,7 @@ export default function Dashboard() {
               ))
             ) : activeAlerts.length === 0 ? (
               <div className="text-center py-6">
-                <CheckCircle className="w-8 h-8 text-status-online mx-auto mb-2" />
+                <CheckCircle className="w-8 h-8 text-status-online animate-status-glow mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">All systems operational</p>
               </div>
             ) : (

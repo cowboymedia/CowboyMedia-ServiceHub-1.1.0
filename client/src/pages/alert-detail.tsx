@@ -12,7 +12,7 @@ import type { ServiceAlert, AlertUpdate, Service } from "@shared/schema";
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
     case "resolved":
-      return <CheckCircle className="w-4 h-4 text-status-online" />;
+      return <CheckCircle className="w-4 h-4 text-status-online animate-status-glow" />;
     case "investigating":
       return <AlertTriangle className="w-4 h-4 text-status-away" />;
     case "identified":

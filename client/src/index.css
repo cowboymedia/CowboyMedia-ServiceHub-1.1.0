@@ -248,6 +248,21 @@ body {
   animation: status-pulse 2s ease-in-out infinite;
 }
 
+@keyframes status-glow {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0px currentColor);
+  }
+  50% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 3px currentColor);
+  }
+}
+
+.animate-status-glow {
+  animation: status-glow 3s ease-in-out infinite;
+}
+
 .animate-page-enter {
   animation: page-enter 0.2s ease-out;
 }
@@ -273,6 +288,9 @@ body {
     background: hsl(var(--muted));
   }
   .animate-status-pulse {
+    animation: none;
+  }
+  .animate-status-glow {
     animation: none;
   }
   .animate-page-enter {

@@ -13,7 +13,7 @@ function StatusIcon({ status }: { status: string }) {
   const pulseClass = isActive ? "animate-status-pulse" : "";
   switch (status) {
     case "operational":
-      return <CheckCircle className="w-5 h-5 text-status-online" />;
+      return <CheckCircle className="w-5 h-5 text-status-online animate-status-glow" />;
     case "degraded":
       return <AlertTriangle className={`w-5 h-5 text-status-away ${pulseClass}`} />;
     case "outage":
