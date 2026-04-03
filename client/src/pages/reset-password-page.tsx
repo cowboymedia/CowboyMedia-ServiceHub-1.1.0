@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +24,24 @@ type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(3);
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const token = params.get("token");
+
+  useEffect(() => {
+    if (!success) return;
+    if (countdown <= 0) {
+      navigate("/auth");
+      return;
+    }
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [success, countdown, navigate]);
 
   const form = useForm<ResetPasswordData>({
     resolver: zodResolver(resetPasswordSchema),
@@ -102,12 +114,12 @@ export default function ResetPasswordPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground" data-testid="text-reset-success">
-                Your password has been successfully reset. You can now sign in with your new password.
+                Your password has been successfully reset. Redirecting to sign in{countdown > 0 ? ` in ${countdown}...` : "..."}
               </p>
               <Link href="/auth">
                 <Button className="w-full gap-2" data-testid="button-go-to-login">
                   <ArrowLeft className="w-4 h-4" />
-                  Go to Sign In
+                  Go to Sign In Now
                 </Button>
               </Link>
             </div>
