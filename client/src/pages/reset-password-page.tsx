@@ -61,8 +61,17 @@ export default function ResetPasswordPage() {
       setSuccess(true);
       toast({ title: "Password reset!", description: result.message });
     } catch (e: any) {
-      setError(e.message || "An error occurred. Please try again.");
-      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+      let errorMsg = "An error occurred. Please try again.";
+      try {
+        const raw = e.message || "";
+        const jsonStart = raw.indexOf("{");
+        if (jsonStart >= 0) {
+          const parsed = JSON.parse(raw.substring(jsonStart));
+          errorMsg = parsed.message || errorMsg;
+        }
+      } catch {}
+      setError(errorMsg);
+      toast({ title: "Reset failed", description: errorMsg, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
