@@ -3079,13 +3079,15 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const response = await fetch(monitor.url, {
         method: "HEAD",
         signal: controller.signal,
-        redirect: "follow",
+        redirect: "manual",
       });
       responseTimeMs = Date.now() - start;
       clearTimeout(timeout);
 
       if (response.status === monitor.expectedStatusCode) {
         isUp = true;
+      } else if (response.status >= 300 && response.status < 400) {
+        failureReason = `HTTP ${response.status} redirect (expected ${monitor.expectedStatusCode}). Use the final URL instead.`;
       } else {
         failureReason = `HTTP ${response.status} (expected ${monitor.expectedStatusCode})`;
       }

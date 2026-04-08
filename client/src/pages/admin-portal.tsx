@@ -3188,7 +3188,7 @@ function LogsTab() {
 
 function MonitoringTab({ canManage }: { canManage: boolean }) {
   const { toast } = useToast();
-  const { data: monitors = [], isLoading } = useQuery<UrlMonitor[]>({ queryKey: ["/api/admin/monitors"] });
+  const { data: monitors = [], isLoading } = useQuery<UrlMonitor[]>({ queryKey: ["/api/admin/monitors"], refetchInterval: 15000 });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<UrlMonitor | null>(null);
   const [selectedMonitor, setSelectedMonitor] = useState<UrlMonitor | null>(null);
@@ -3329,7 +3329,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className={`rounded-full p-2 ${getStatusBg(m.status, m.enabled)}`}>
-                    <Circle className={`w-4 h-4 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "fill-current" : ""}`} />
+                    <Circle className={`w-4 h-4 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -3450,8 +3450,8 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
 }
 
 function MonitorDetailView({ monitor, onBack }: { monitor: UrlMonitor; onBack: () => void }) {
-  const { data: liveMonitor } = useQuery<UrlMonitor>({ queryKey: ["/api/admin/monitors", monitor.id] });
-  const { data: incidents = [], isLoading } = useQuery<MonitorIncident[]>({ queryKey: ["/api/admin/monitors", monitor.id, "incidents"] });
+  const { data: liveMonitor } = useQuery<UrlMonitor>({ queryKey: ["/api/admin/monitors", monitor.id], refetchInterval: 15000 });
+  const { data: incidents = [], isLoading } = useQuery<MonitorIncident[]>({ queryKey: ["/api/admin/monitors", monitor.id, "incidents"], refetchInterval: 30000 });
   const m = liveMonitor || monitor;
 
   const getStatusColor = (status: string, enabled: boolean) => {
@@ -3492,7 +3492,7 @@ function MonitorDetailView({ monitor, onBack }: { monitor: UrlMonitor; onBack: (
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-3">
-            <Circle className={`w-5 h-5 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "fill-current" : ""}`} />
+            <Circle className={`w-5 h-5 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
             <div>
               <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
               <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:underline flex items-center gap-1" data-testid="link-monitor-url">

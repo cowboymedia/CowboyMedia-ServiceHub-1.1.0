@@ -263,6 +263,21 @@ body {
   animation: status-glow 3s ease-in-out infinite;
 }
 
+@keyframes status-pulse-down {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0px currentColor);
+  }
+  50% {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+}
+
+.animate-status-down {
+  animation: status-pulse-down 1.5s ease-in-out infinite;
+}
+
 .animate-page-enter {
   animation: page-enter 0.2s ease-out;
 }
