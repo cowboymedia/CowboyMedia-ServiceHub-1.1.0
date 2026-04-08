@@ -3127,8 +3127,8 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         await storage.markThreadMessagesRead(notif.referenceId, userId);
       } else if (notif.type === "report_update" || notif.type === "new_report") {
         await storage.markReportNotificationsRead(userId);
-      } else if (notif.type === "alert" || notif.type === "news" || notif.type === "service_update") {
-        const categoryMap: Record<string, string> = { alert: "alerts", news: "news", service_update: "service-updates" };
+      } else if (notif.type === "alert" || notif.type === "news" || notif.type === "service_update" || notif.type === "new_signup") {
+        const categoryMap: Record<string, string> = { alert: "alerts", news: "news", service_update: "service-updates", new_signup: "admin-users" };
         const cat = categoryMap[notif.type];
         if (cat) await storage.markContentNotificationsRead(userId, cat);
       } else if (notif.type === "service_status") {
@@ -3182,6 +3182,8 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       await storage.markContentNotificationsRead(userId, "news");
       await storage.markContentNotificationsRead(userId, "service-updates");
       await storage.markContentNotificationsRead(userId, "services");
+      await storage.markContentNotificationsRead(userId, "admin-users");
+      await storage.markContentNotificationsRead(userId, "admin-reports");
       res.json({ message: "All marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });

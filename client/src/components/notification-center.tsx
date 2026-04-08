@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Bell, X, Mail, MessageSquare, AlertTriangle, Newspaper, Activity, FileText, RefreshCw, CheckCheck, UserPlus, MonitorX, MonitorCheck } from "lucide-react";
@@ -51,13 +51,14 @@ function invalidateRelatedBadges(type: string) {
   if (type === "ticket_update" || type === "new_ticket") keys.push("/api/ticket-notifications/unread-count");
   if (type === "message") keys.push("/api/message-threads/unread-count");
   if (type === "report_update" || type === "new_report") keys.push("/api/report-notifications/unread-count");
-  if (["alert", "news", "service_status", "service_update"].includes(type)) keys.push("/api/content-notifications/counts");
+  if (["alert", "news", "service_status", "service_update", "new_signup"].includes(type)) keys.push("/api/content-notifications/counts");
   for (const key of keys) {
     queryClient.invalidateQueries({ queryKey: [key] });
   }
 }
 
 function NotificationList({ onNavigate }: { onNavigate: (url: string) => void }) {
+  const [hasSyncedBadges, setHasSyncedBadges] = useState(false);
   const { data: notifications = [], isLoading } = useQuery<UserNotification[]>({
     queryKey: ["/api/notifications"],
     refetchInterval: 30000,
@@ -118,7 +119,20 @@ function NotificationList({ onNavigate }: { onNavigate: (url: string) => void })
     markAllReadMutation.mutate();
   };
 
-  const unreadCount = notifications.filter(n => !n.readAt).length;
+  useEffect(() => {
+    if (!isLoading && notifications.length === 0 && !hasSyncedBadges) {
+      setHasSyncedBadges(true);
+      apiRequest("POST", "/api/notifications/mark-all-read")
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/ticket-notifications/unread-count"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/message-threads/unread-count"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/report-notifications/unread-count"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/content-notifications/counts"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+        })
+        .catch(() => {});
+    }
+  }, [isLoading, notifications.length, hasSyncedBadges]);
 
   if (isLoading) {
     return (
