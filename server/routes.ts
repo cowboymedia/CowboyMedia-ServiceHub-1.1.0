@@ -3100,9 +3100,32 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
     }
   });
 
+  async function clearRelatedBadge(userId: string, notif: { type: string; referenceType: string | null; referenceId: string | null }) {
+    try {
+      if (notif.type === "ticket_update" && notif.referenceId) {
+        await storage.deleteTicketNotificationsByTicket(notif.referenceId);
+      } else if (notif.type === "message" && notif.referenceId) {
+        await storage.markThreadMessagesRead(notif.referenceId, userId);
+      } else if (notif.type === "report_update") {
+        await storage.markReportNotificationsRead(userId);
+      } else if (notif.type === "alert" || notif.type === "news" || notif.type === "service_update") {
+        const categoryMap: Record<string, string> = { alert: "alerts", news: "news", service_update: "service-updates" };
+        const cat = categoryMap[notif.type];
+        if (cat) await storage.markContentNotificationsRead(userId, cat);
+      } else if (notif.type === "service_status") {
+        await storage.markContentNotificationsRead(userId, "services");
+      }
+    } catch (e: any) {
+      console.error("[NotifBadge] Failed to clear related badge:", e.message);
+    }
+  }
+
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
+      const notifications = await storage.getUserNotifications(req.session.userId!, 100, 0);
+      const notif = notifications.find(n => n.id === req.params.id);
       await storage.markUserNotificationRead(req.params.id, req.session.userId!);
+      if (notif) await clearRelatedBadge(req.session.userId!, notif);
       res.json({ message: "Marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -3111,8 +3134,21 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/notifications/:id/dismiss", requireAuth, async (req, res) => {
     try {
+      const notifications = await storage.getUserNotifications(req.session.userId!, 100, 0);
+      const notif = notifications.find(n => n.id === req.params.id);
       await storage.dismissUserNotification(req.params.id, req.session.userId!);
+      if (notif) await clearRelatedBadge(req.session.userId!, notif);
       res.json({ message: "Dismissed" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/notifications/cleanup", requireAuth, async (req, res) => {
+    try {
+      const days = Math.max(1, parseInt(req.query.days as string) || 30);
+      const count = await storage.deleteExpiredUserNotifications(days);
+      res.json({ deleted: count });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
