@@ -114,7 +114,7 @@ app.use((req, res, next) => {
         const rendered = await renderTemplate("customer_setup_reminder", {
           customer_name: user.fullName,
           missing_items: missingItems.join("\n"),
-        });
+        }, new Set(["missing_items"]));
 
         if (rendered && user.email) {
           await sendEmail(user.email, rendered.subject, rendered.body);

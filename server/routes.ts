@@ -2419,14 +2419,15 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
         const customer = await storage.getUser(existing.customerId);
         if (customer?.email && customer.emailNotifications !== false) {
-          const notesBlock = adminNotes ? `<blockquote>${adminNotes}</blockquote>` : (updated.adminNotes ? `<blockquote>${updated.adminNotes}</blockquote>` : "");
+          const notesRaw = adminNotes || updated.adminNotes || "";
+          const notesBlock = notesRaw ? `<blockquote>${escapeHtml(notesRaw).replace(/\n/g, "<br/>")}</blockquote>` : "";
           sendTemplatedEmail(customer.email, "customer_report_update", {
             type_label: typeLabel,
             report_title: existing.title,
             status_label: statusLabel,
             admin_notes_block: notesBlock,
             customer_name: customer.fullName,
-          }, customer.fullName);
+          }, customer.fullName, new Set(["admin_notes_block"]));
         }
       }
 
