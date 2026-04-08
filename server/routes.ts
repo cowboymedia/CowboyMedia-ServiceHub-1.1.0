@@ -6,7 +6,7 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, insertDownloadSchema, insertUrlMonitorSchema } from "@shared/schema";
+import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, insertDownloadSchema, insertUrlMonitorSchema, userNotifications } from "@shared/schema";
 import { z } from "zod";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
@@ -314,7 +314,24 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   );
 }
 
-async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }) {
+interface NotifMeta {
+  type: string;
+  referenceType?: string;
+  referenceId?: string;
+}
+
+async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }, notif?: NotifMeta) {
+  if (notif) {
+    storage.createUserNotification({
+      userId,
+      type: notif.type,
+      title: payload.title,
+      body: payload.body,
+      referenceType: notif.referenceType || null,
+      referenceId: notif.referenceId || null,
+      url: payload.url || null,
+    }).catch(e => console.error("[UserNotif] Failed to create:", e.message));
+  }
   try {
     const subs = await storage.getPushSubscriptionsByUser(userId);
     if (subs.length === 0) {
@@ -745,7 +762,7 @@ export async function registerRoutes(
           body: `Reply on: ${ticket.subject}`,
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
-        });
+        }, { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
         storage.createTicketNotification({
           userId: req.session.userId!,
           ticketId: ticket.id,
@@ -1002,7 +1019,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         body: pushBody,
         url: `/tickets/${ticket.id}`,
         tag: `ticket-${ticket.id}`,
-      });
+      }, { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
       storage.createTicketNotification({
         userId: ticket.customerId,
         ticketId: ticket.id,
@@ -1355,7 +1372,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: `Reply on: ${ticket.subject}`,
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
-        });
+        }, { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
         storage.createTicketNotification({
           userId: ticket.customerId,
           ticketId: ticket.id,
@@ -1518,7 +1535,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
             body: `${updated.name}: ${updated.status}`,
             url: "/services",
             tag: `service-${updated.id}`,
-          });
+          }, { type: "service_status", referenceType: "service", referenceId: updated.id });
           if (u.email && u.emailNotifications !== false) {
             sendTemplatedEmail(u.email, "customer_service_status", {
               service_name: updated.name,
@@ -1570,7 +1587,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
             body: alert.title,
             url: `/alerts/${alert.id}`,
             tag: `alert-${alert.id}`,
-          });
+          }, u.role === "customer" ? { type: "alert", referenceType: "alert", referenceId: alert.id } : undefined);
         }
         if (parsedSendEmail && u.email && u.emailNotifications !== false) {
           sendTemplatedEmail(u.email, "customer_service_alert", {
@@ -1659,7 +1676,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
               body: updateData.message,
               url: `/alerts/${req.params.id}`,
               tag: `alert-${req.params.id}`,
-            });
+            }, u.role === "customer" ? { type: "alert", referenceType: "alert", referenceId: req.params.id } : undefined);
           }
           if ((parsedSendEmail || isResolved) && u.email && u.emailNotifications !== false) {
             sendTemplatedEmail(u.email, "customer_service_alert", {
@@ -1723,7 +1740,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: `${updated.title} has been resolved. Service is back to operational.`,
           url: `/alerts/${req.params.id}`,
           tag: `alert-${req.params.id}`,
-        });
+        }, u.role === "customer" ? { type: "alert", referenceType: "alert", referenceId: req.params.id } : undefined);
         if (u.email && u.emailNotifications !== false) {
           sendTemplatedEmail(u.email, "customer_service_alert", {
             alert_title: `${serviceName}: Issue Resolved — Service Restored`,
@@ -1787,7 +1804,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: title,
           url: "/service-updates",
           tag: `service-update-${update.id}`,
-        });
+        }, { type: "service_update", referenceType: "service_update", referenceId: update.id });
         if (u.email && u.emailNotifications !== false) {
           sendTemplatedEmail(u.email, "customer_service_update", {
             service_name: serviceName,
@@ -1858,7 +1875,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: story.title,
           url: `/news/${story.id}`,
           tag: `news-${story.id}`,
-        });
+        }, { type: "news", referenceType: "news", referenceId: story.id });
       }
       const customerEmails = allUsers.filter(u => u.role === "customer" && u.email && u.emailNotifications !== false).map(u => u.email);
       if (customerEmails.length > 0) {
@@ -2018,7 +2035,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         body: `${subject}: ${body.substring(0, 100)}`,
         url: `/messages/${thread.id}`,
         tag: `thread-${thread.id}`,
-      });
+      }, { type: "message", referenceType: "message_thread", referenceId: thread.id });
 
       if (customer.email && customer.emailNotifications !== false && sender) {
         sendTemplatedEmail(customer.email, "customer_thread_message", {
@@ -2137,12 +2154,14 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const recipientId = thread.adminId === req.session.userId ? thread.customerId : thread.adminId;
       const isRecipientViewing = isUserViewingThread(recipientId, thread.id);
 
+      const recipientUser = await storage.getUser(recipientId);
+      const recipientIsCustomer = recipientUser?.role === "customer";
       sendPushToUser(recipientId, {
         title: `${sender?.fullName || "User"}`,
         body: body.trim().substring(0, 100),
         url: `/messages/${thread.id}`,
         tag: `thread-${thread.id}`,
-      });
+      }, recipientIsCustomer ? { type: "message", referenceType: "message_thread", referenceId: thread.id } : undefined);
 
       if (!isRecipientViewing) {
         const recipient = await storage.getUser(recipientId);
@@ -2368,7 +2387,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: `Your ${typeLabel.toLowerCase()} "${existing.title}" has been marked as ${statusLabel}`,
           url: "/report-request",
           tag: `report-${existing.id}`,
-        });
+        }, { type: "report_update", referenceType: "report_request", referenceId: existing.id });
 
         storage.createReportNotification({
           userId: existing.customerId,
@@ -3052,6 +3071,57 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       if (!existing) return res.status(404).json({ message: "Download not found" });
       await storage.deleteDownload(req.params.id);
       res.json({ message: "Deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  storage.deleteExpiredUserNotifications(30).then(count => {
+    if (count > 0) console.log(`[Cleanup] Deleted ${count} expired notification(s) older than 30 days`);
+  }).catch(e => console.error("[Cleanup] Failed to delete expired notifications:", e.message));
+
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const notifications = await storage.getUserNotifications(req.session.userId!, limit, offset);
+      res.json(notifications);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadUserNotificationCount(req.session.userId!);
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
+    try {
+      await storage.markUserNotificationRead(req.params.id, req.session.userId!);
+      res.json({ message: "Marked as read" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/notifications/:id/dismiss", requireAuth, async (req, res) => {
+    try {
+      await storage.dismissUserNotification(req.params.id, req.session.userId!);
+      res.json({ message: "Dismissed" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
+    try {
+      await storage.markAllUserNotificationsRead(req.session.userId!);
+      res.json({ message: "All marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

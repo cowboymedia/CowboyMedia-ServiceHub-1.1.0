@@ -29,7 +29,8 @@ import {
   type MonitorIncident, type InsertMonitorIncident,
   type MessageThread, type InsertMessageThread,
   type ThreadMessage, type InsertThreadMessage,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages,
+  type UserNotification, type InsertUserNotification,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -197,6 +198,14 @@ export interface IStorage {
   createThreadMessage(data: InsertThreadMessage): Promise<ThreadMessage>;
   markThreadMessagesRead(threadId: string, userId: string): Promise<void>;
   getUnreadThreadMessageCount(userId: string): Promise<number>;
+
+  createUserNotification(data: InsertUserNotification): Promise<UserNotification>;
+  getUserNotifications(userId: string, limit?: number, offset?: number): Promise<UserNotification[]>;
+  getUnreadUserNotificationCount(userId: string): Promise<number>;
+  markUserNotificationRead(id: string, userId: string): Promise<void>;
+  dismissUserNotification(id: string, userId: string): Promise<void>;
+  markAllUserNotificationsRead(userId: string): Promise<void>;
+  deleteExpiredUserNotifications(daysOld: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -977,6 +986,44 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return result[0]?.count ?? 0;
+  }
+
+  async createUserNotification(data: InsertUserNotification): Promise<UserNotification> {
+    const [created] = await db.insert(userNotifications).values(data).returning();
+    return created;
+  }
+
+  async getUserNotifications(userId: string, limit = 50, offset = 0): Promise<UserNotification[]> {
+    return db.select().from(userNotifications)
+      .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.dismissedAt)))
+      .orderBy(desc(userNotifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getUnreadUserNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(userNotifications)
+      .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.readAt), isNull(userNotifications.dismissedAt)));
+    return result[0]?.count ?? 0;
+  }
+
+  async markUserNotificationRead(id: string, userId: string): Promise<void> {
+    await db.update(userNotifications).set({ readAt: new Date() }).where(and(eq(userNotifications.id, id), eq(userNotifications.userId, userId)));
+  }
+
+  async dismissUserNotification(id: string, userId: string): Promise<void> {
+    await db.update(userNotifications).set({ dismissedAt: new Date() }).where(and(eq(userNotifications.id, id), eq(userNotifications.userId, userId)));
+  }
+
+  async markAllUserNotificationsRead(userId: string): Promise<void> {
+    await db.update(userNotifications).set({ readAt: new Date() })
+      .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.readAt), isNull(userNotifications.dismissedAt)));
+  }
+
+  async deleteExpiredUserNotifications(daysOld: number): Promise<number> {
+    const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
+    const result = await db.delete(userNotifications).where(sql`${userNotifications.createdAt} < ${cutoff}`);
+    return result.rowCount ?? 0;
   }
 }
 

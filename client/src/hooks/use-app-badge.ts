@@ -24,6 +24,7 @@ const BADGE_QUERY_KEYS = [
   "/api/message-threads/unread-count",
   "/api/report-notifications/unread-count",
   "/api/content-notifications/counts",
+  "/api/notifications/unread-count",
 ];
 
 export function useAppBadge() {

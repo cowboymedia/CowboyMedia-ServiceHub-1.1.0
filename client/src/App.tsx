@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, BellRing, Settings, Mail, CheckCircle, Activity, Megaphone, ArrowRightLeft, Home } from "lucide-react";
+import { NotificationCenter } from "@/components/notification-center";
 import { format } from "date-fns";
 import { subscribeToPush, isPushSupported, isSubscribedToPush } from "@/lib/push-notifications";
 import logoImg from "@assets/CowboyMedia_App_Internal_Logo_(512_x_512_px)_20260128_040144_0_1771258775818.png";
@@ -141,6 +142,9 @@ function AuthenticatedLayout() {
               <Link href="/" className="pointer-events-auto" data-testid="link-header-home">
                 <img src={logoImg} alt="CowboyMedia" className="h-20 md:h-8 cursor-pointer" />
               </Link>
+            </div>
+            <div className="z-10 ml-auto">
+              <NotificationCenter />
             </div>
           </header>
           <PullToRefresh ref={scrollRef} className={`flex-1 min-h-0 ${isTicketDetail ? 'flex flex-col overflow-hidden' : 'overflow-auto'} ${isMobile ? 'pb-14' : ''}`} disabled={isTicketDetail || isNewsPage || isAdminPortal}>

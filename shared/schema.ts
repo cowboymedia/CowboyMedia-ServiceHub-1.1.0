@@ -434,6 +434,24 @@ export const insertThreadMessageSchema = createInsertSchema(threadMessages).omit
 export type InsertThreadMessage = z.infer<typeof insertThreadMessageSchema>;
 export type ThreadMessage = typeof threadMessages.$inferSelect;
 
+export const userNotifications = pgTable("user_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  referenceType: text("reference_type"),
+  referenceId: varchar("reference_id"),
+  url: text("url"),
+  readAt: timestamp("read_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserNotificationSchema = createInsertSchema(userNotifications).omit({ id: true, readAt: true, dismissedAt: true, createdAt: true });
+export type InsertUserNotification = z.infer<typeof insertUserNotificationSchema>;
+export type UserNotification = typeof userNotifications.$inferSelect;
+
 // Login schema
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
