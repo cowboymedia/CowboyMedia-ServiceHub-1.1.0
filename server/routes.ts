@@ -367,20 +367,20 @@ export async function registerRoutes(
 
   app.set("trust proxy", 1);
 
-  app.use(
-    session({
-      store: new PgStore({ pool, createTableIfMissing: true }),
-      secret: process.env.SESSION_SECRET || "servicehub-secret-key",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    store: new PgStore({ pool, createTableIfMissing: true }),
+    secret: process.env.SESSION_SECRET || "servicehub-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
+  });
+
+  app.use(sessionMiddleware);
 
   app.get("/uploads/:filename", async (req, res) => {
     try {
@@ -2015,7 +2015,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         }, customer.fullName);
       }
 
-      logActivity(req.session.userId!, "messages", "thread_created", `Started conversation "${subject}" with ${customer.fullName}`);
+      logActivity("messages", "thread_created", { actorId: req.session.userId!, targetId: thread.id, targetType: "message_thread", summary: `Started conversation "${subject}" with ${customer.fullName}` });
 
       res.json({ thread, message: msg });
     } catch (e: any) {
@@ -3043,9 +3043,23 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
     }
   });
 
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
+  const wsSessionUserMap = new Map<WebSocket, string>();
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url !== "/ws") { socket.destroy(); return; }
+    (sessionMiddleware as any)(req, {} as any, () => {
+      const userId = (req as any).session?.userId;
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        if (userId) wsSessionUserMap.set(ws, userId);
+        wss.emit("connection", ws, req);
+      });
+    });
+  });
+
   wss.on("connection", (ws) => {
     wsClients.add(ws);
+    const sessionUserId = wsSessionUserMap.get(ws);
 
     ws.on("message", (raw) => {
       try {
@@ -3069,24 +3083,24 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           const info = wsAdminChatMap.get(ws);
           if (info && info.threadId === data.threadId) wsAdminChatMap.delete(ws);
         }
-        if (data.type === "thread_typing" && data.threadId && data.userId && data.userName) {
-          const msg = JSON.stringify({ type: "thread_typing", threadId: data.threadId, userId: data.userId, userName: data.userName });
+        if (data.type === "thread_typing" && data.threadId && sessionUserId && data.userName) {
+          const msg = JSON.stringify({ type: "thread_typing", threadId: data.threadId, userId: sessionUserId, userName: data.userName });
           wsThreadMap.forEach((info, client) => {
             if (client !== ws && info.threadId === data.threadId && client.readyState === WebSocket.OPEN) {
               client.send(msg);
             }
           });
         }
-        if (data.type === "viewing_thread" && data.threadId && data.userId) {
+        if (data.type === "viewing_thread" && data.threadId && sessionUserId) {
           const prev = wsThreadMap.get(ws);
           if (prev) {
             removeThreadViewer(prev.threadId, prev.userId);
           }
-          wsThreadMap.set(ws, { userId: data.userId, threadId: data.threadId });
-          addThreadViewer(data.threadId, data.userId);
+          wsThreadMap.set(ws, { userId: sessionUserId, threadId: data.threadId });
+          addThreadViewer(data.threadId, sessionUserId);
         }
-        if (data.type === "left_thread" && data.threadId && data.userId) {
-          removeThreadViewer(data.threadId, data.userId);
+        if (data.type === "left_thread" && data.threadId && sessionUserId) {
+          removeThreadViewer(data.threadId, sessionUserId);
           const info = wsThreadMap.get(ws);
           if (info && info.threadId === data.threadId) wsThreadMap.delete(ws);
         }
@@ -3127,6 +3141,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         removeThreadViewer(threadInfo.threadId, threadInfo.userId);
         wsThreadMap.delete(ws);
       }
+      wsSessionUserMap.delete(ws);
     });
   });
 
