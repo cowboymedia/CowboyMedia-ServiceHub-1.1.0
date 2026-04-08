@@ -3156,16 +3156,13 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
   app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId!;
-      const unreadNotifs = await storage.getUserNotifications(userId, 200, 0);
-      const unread = unreadNotifs.filter(n => !n.readAt);
       await storage.markAllUserNotificationsRead(userId);
-      const seenTypes = new Set<string>();
-      for (const notif of unread) {
-        if (!seenTypes.has(notif.type)) {
-          seenTypes.add(notif.type);
-          await clearRelatedBadge(userId, notif);
-        }
-      }
+      await storage.markTicketNotificationsRead(userId);
+      await storage.markReportNotificationsRead(userId);
+      await storage.markContentNotificationsRead(userId, "alerts");
+      await storage.markContentNotificationsRead(userId, "news");
+      await storage.markContentNotificationsRead(userId, "service-updates");
+      await storage.markContentNotificationsRead(userId, "services");
       res.json({ message: "All marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
