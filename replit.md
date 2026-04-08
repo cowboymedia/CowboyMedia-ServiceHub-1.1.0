@@ -58,6 +58,17 @@ The frontend utilizes React with Vite, styled using TailwindCSS and Shadcn UI fo
 - Navigation: sidebar (between Report/Request and Settings), bottom nav More sheet, route registered in App.tsx
 - Relevant files: `shared/schema.ts`, `server/storage.ts`, `server/routes.ts`, `client/src/pages/downloads-page.tsx`, `client/src/pages/admin-portal.tsx` (DownloadsTab), `client/src/components/bottom-nav.tsx`, `client/src/components/app-sidebar.tsx`
 
+### URL Monitoring
+- `url_monitors` table: id, name, url, checkIntervalSeconds, expectedStatusCode, timeoutSeconds, consecutiveFailuresThreshold, emailNotifications, enabled, status (unknown/up/down), lastCheckedAt, lastStatusChange, lastResponseTimeMs, consecutiveFailures, createdAt
+- `monitor_incidents` table: id, monitorId, startedAt, resolvedAt, durationSeconds, failureReason, notifiedDown, notifiedUp
+- Background monitoring loop runs every 15s, checks each monitor per its own interval via HTTP HEAD requests
+- Uses AbortController for timeout; tracks consecutive failures before marking "down" (default threshold: 3)
+- Push + email notifications to all admins on status transitions (down/up) using `monitor_down` and `monitor_up` email templates
+- Admin portal tile "URL Monitoring" gated by `monitoring.view` / `monitoring.manage` permissions
+- Full CRUD in admin UI: create/edit/delete monitors, pause/resume, view detail with incident history
+- Migration file: `migrations/003_url_monitors.sql`
+- API routes: GET/POST `/api/admin/monitors`, GET/PATCH/DELETE `/api/admin/monitors/:id`, GET `/api/admin/monitors/:id/incidents`
+
 ### Email Template Protection
 - `customized` boolean column on `emailTemplates` table tracks admin-edited templates
 - The seeder (`upsertEmailTemplate`) skips body/subject overwrites on customized templates but still syncs new `availableVariables`

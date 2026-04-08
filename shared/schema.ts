@@ -369,6 +369,43 @@ export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTo
 export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 
+export const urlMonitors = pgTable("url_monitors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  checkIntervalSeconds: integer("check_interval_seconds").notNull().default(60),
+  expectedStatusCode: integer("expected_status_code").notNull().default(200),
+  timeoutSeconds: integer("timeout_seconds").notNull().default(10),
+  consecutiveFailuresThreshold: integer("consecutive_failures_threshold").notNull().default(3),
+  emailNotifications: boolean("email_notifications").notNull().default(true),
+  enabled: boolean("enabled").notNull().default(true),
+  status: text("status").notNull().default("unknown"),
+  lastCheckedAt: timestamp("last_checked_at"),
+  lastStatusChange: timestamp("last_status_change"),
+  lastResponseTimeMs: integer("last_response_time_ms"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const monitorIncidents = pgTable("monitor_incidents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  monitorId: varchar("monitor_id").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  durationSeconds: integer("duration_seconds"),
+  failureReason: text("failure_reason"),
+  notifiedDown: boolean("notified_down").notNull().default(false),
+  notifiedUp: boolean("notified_up").notNull().default(false),
+});
+
+export const insertUrlMonitorSchema = createInsertSchema(urlMonitors).omit({ id: true, createdAt: true, lastCheckedAt: true, lastStatusChange: true, lastResponseTimeMs: true, consecutiveFailures: true, status: true });
+export type InsertUrlMonitor = z.infer<typeof insertUrlMonitorSchema>;
+export type UrlMonitor = typeof urlMonitors.$inferSelect;
+
+export const insertMonitorIncidentSchema = createInsertSchema(monitorIncidents).omit({ id: true });
+export type InsertMonitorIncident = z.infer<typeof insertMonitorIncidentSchema>;
+export type MonitorIncident = typeof monitorIncidents.$inferSelect;
+
 // Login schema
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),

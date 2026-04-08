@@ -25,7 +25,9 @@ import {
   type AdminActivityLog, type InsertAdminActivityLog,
   type Download, type InsertDownload,
   type PasswordResetToken, type InsertPasswordResetToken,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens,
+  type UrlMonitor, type InsertUrlMonitor,
+  type MonitorIncident, type InsertMonitorIncident,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -171,6 +173,17 @@ export interface IStorage {
   createPasswordResetToken(data: InsertPasswordResetToken): Promise<PasswordResetToken>;
   getPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetToken | undefined>;
   markPasswordResetTokenUsed(id: string): Promise<void>;
+
+  getAllUrlMonitors(): Promise<UrlMonitor[]>;
+  getUrlMonitor(id: string): Promise<UrlMonitor | undefined>;
+  createUrlMonitor(data: InsertUrlMonitor): Promise<UrlMonitor>;
+  updateUrlMonitor(id: string, data: Partial<UrlMonitor>): Promise<UrlMonitor | undefined>;
+  deleteUrlMonitor(id: string): Promise<void>;
+
+  getMonitorIncidents(monitorId: string): Promise<MonitorIncident[]>;
+  getOpenIncident(monitorId: string): Promise<MonitorIncident | undefined>;
+  createMonitorIncident(data: InsertMonitorIncident): Promise<MonitorIncident>;
+  updateMonitorIncident(id: string, data: Partial<MonitorIncident>): Promise<MonitorIncident | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -846,6 +859,49 @@ export class DatabaseStorage implements IStorage {
 
   async markPasswordResetTokenUsed(id: string): Promise<void> {
     await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, id));
+  }
+
+  async getAllUrlMonitors(): Promise<UrlMonitor[]> {
+    return db.select().from(urlMonitors).orderBy(desc(urlMonitors.createdAt));
+  }
+
+  async getUrlMonitor(id: string): Promise<UrlMonitor | undefined> {
+    const [m] = await db.select().from(urlMonitors).where(eq(urlMonitors.id, id));
+    return m;
+  }
+
+  async createUrlMonitor(data: InsertUrlMonitor): Promise<UrlMonitor> {
+    const [m] = await db.insert(urlMonitors).values(data).returning();
+    return m;
+  }
+
+  async updateUrlMonitor(id: string, data: Partial<UrlMonitor>): Promise<UrlMonitor | undefined> {
+    const [m] = await db.update(urlMonitors).set(data).where(eq(urlMonitors.id, id)).returning();
+    return m;
+  }
+
+  async deleteUrlMonitor(id: string): Promise<void> {
+    await db.delete(monitorIncidents).where(eq(monitorIncidents.monitorId, id));
+    await db.delete(urlMonitors).where(eq(urlMonitors.id, id));
+  }
+
+  async getMonitorIncidents(monitorId: string): Promise<MonitorIncident[]> {
+    return db.select().from(monitorIncidents).where(eq(monitorIncidents.monitorId, monitorId)).orderBy(desc(monitorIncidents.startedAt));
+  }
+
+  async getOpenIncident(monitorId: string): Promise<MonitorIncident | undefined> {
+    const [inc] = await db.select().from(monitorIncidents).where(and(eq(monitorIncidents.monitorId, monitorId), isNull(monitorIncidents.resolvedAt)));
+    return inc;
+  }
+
+  async createMonitorIncident(data: InsertMonitorIncident): Promise<MonitorIncident> {
+    const [inc] = await db.insert(monitorIncidents).values(data).returning();
+    return inc;
+  }
+
+  async updateMonitorIncident(id: string, data: Partial<MonitorIncident>): Promise<MonitorIncident | undefined> {
+    const [inc] = await db.update(monitorIncidents).set(data).where(eq(monitorIncidents.id, id)).returning();
+    return inc;
   }
 }
 

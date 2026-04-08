@@ -6,7 +6,8 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { db } from "./db";
-import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, insertDownloadSchema } from "@shared/schema";
+import { uploadedFiles, newsStories, tickets, ticketMessages, insertServiceUpdateSchema, insertDownloadSchema, insertUrlMonitorSchema } from "@shared/schema";
+import { z } from "zod";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
@@ -2847,6 +2848,274 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       console.error("Cleanup orphaned image refs failed:", e);
     }
   })();
+
+  app.get("/api/admin/monitors", requirePermission("monitoring.view", "monitoring.manage"), async (_req, res) => {
+    const monitors = await storage.getAllUrlMonitors();
+    res.json(monitors);
+  });
+
+  app.get("/api/admin/monitors/:id", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
+    const monitor = await storage.getUrlMonitor(req.params.id);
+    if (!monitor) return res.status(404).json({ message: "Monitor not found" });
+    res.json(monitor);
+  });
+
+  function validateMonitorUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) return "Only http and https URLs are allowed";
+      const hostname = parsed.hostname.toLowerCase();
+      if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1") return "Cannot monitor localhost addresses";
+      if (hostname.startsWith("10.") || hostname.startsWith("192.168.") || hostname.startsWith("169.254.")) return "Cannot monitor private/internal IP ranges";
+      if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return "Cannot monitor private IP ranges";
+      if (hostname.endsWith(".internal") || hostname.endsWith(".local")) return "Cannot monitor internal hostnames";
+      return null;
+    } catch {
+      return "Invalid URL format";
+    }
+  }
+
+  const monitorUpdateSchema = z.object({
+    name: z.string().min(1).optional(),
+    url: z.string().url().optional(),
+    checkIntervalSeconds: z.number().int().min(10).max(86400).optional(),
+    expectedStatusCode: z.number().int().min(100).max(599).optional(),
+    timeoutSeconds: z.number().int().min(1).max(120).optional(),
+    consecutiveFailuresThreshold: z.number().int().min(1).max(100).optional(),
+    emailNotifications: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+  });
+
+  app.post("/api/admin/monitors", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
+    const parsed = insertUrlMonitorSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.flatten() });
+    const urlError = validateMonitorUrl(parsed.data.url);
+    if (urlError) return res.status(400).json({ message: urlError });
+    const monitor = await storage.createUrlMonitor(parsed.data);
+    logActivity("monitoring", "monitor_created", {
+      actorId: req.session.userId,
+      targetId: monitor.id,
+      targetType: "url_monitor",
+      summary: `Created URL monitor: ${monitor.name} (${monitor.url})`,
+    });
+    res.status(201).json(monitor);
+  });
+
+  app.patch("/api/admin/monitors/:id", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
+    const monitor = await storage.getUrlMonitor(req.params.id);
+    if (!monitor) return res.status(404).json({ message: "Monitor not found" });
+    const parsed = monitorUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.flatten() });
+    if (parsed.data.url) {
+      const urlError = validateMonitorUrl(parsed.data.url);
+      if (urlError) return res.status(400).json({ message: urlError });
+    }
+    const updated = await storage.updateUrlMonitor(req.params.id, parsed.data);
+    logActivity("monitoring", "monitor_updated", {
+      actorId: req.session.userId,
+      targetId: req.params.id,
+      targetType: "url_monitor",
+      summary: `Updated URL monitor: ${monitor.name}`,
+    });
+    res.json(updated);
+  });
+
+  app.delete("/api/admin/monitors/:id", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
+    const monitor = await storage.getUrlMonitor(req.params.id);
+    if (!monitor) return res.status(404).json({ message: "Monitor not found" });
+    await storage.deleteUrlMonitor(req.params.id);
+    logActivity("monitoring", "monitor_deleted", {
+      actorId: req.session.userId,
+      targetId: req.params.id,
+      targetType: "url_monitor",
+      summary: `Deleted URL monitor: ${monitor.name} (${monitor.url})`,
+    });
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/admin/monitors/:id/incidents", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
+    const incidents = await storage.getMonitorIncidents(req.params.id);
+    res.json(incidents);
+  });
+
+  async function notifyAdminsMonitorDown(monitor: { id: string; name: string; url: string; emailNotifications: boolean }, reason: string) {
+    const allUsers = await storage.getAllUsers();
+    const admins = allUsers.filter(u => u.role === "admin" || u.role === "master_admin");
+    const failureTime = format(new Date(), "MMM d, yyyy h:mm a");
+
+    for (const admin of admins) {
+      sendPushToUser(admin.id, {
+        title: `⚠️ ${monitor.name} is DOWN`,
+        body: reason,
+        url: "/admin",
+        tag: `monitor-${monitor.id}-down`,
+      });
+    }
+
+    if (monitor.emailNotifications) {
+      const adminEmails = admins.filter(a => a.email).map(a => a.email!);
+      if (adminEmails.length > 0) {
+        const rendered = await renderTemplate("monitor_down", {
+          monitor_name: monitor.name,
+          monitor_url: monitor.url,
+          failure_reason: reason,
+          failure_time: failureTime,
+        });
+        if (rendered) {
+          await sendEmailToMultiple(adminEmails, rendered.subject, rendered.body);
+        }
+      }
+    }
+
+    logActivity("monitoring", "monitor_down", {
+      targetId: monitor.id,
+      targetType: "url_monitor",
+      summary: `Monitor ${monitor.name} is DOWN: ${reason}`,
+    });
+  }
+
+  async function notifyAdminsMonitorUp(monitor: { id: string; name: string; url: string; emailNotifications: boolean }, downtimeSeconds: number) {
+    const allUsers = await storage.getAllUsers();
+    const admins = allUsers.filter(u => u.role === "admin" || u.role === "master_admin");
+    const recoveryTime = format(new Date(), "MMM d, yyyy h:mm a");
+
+    const hours = Math.floor(downtimeSeconds / 3600);
+    const mins = Math.floor((downtimeSeconds % 3600) / 60);
+    const secs = downtimeSeconds % 60;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (mins > 0) parts.push(`${mins}m`);
+    parts.push(`${secs}s`);
+    const downtimeDuration = parts.join(" ");
+
+    for (const admin of admins) {
+      sendPushToUser(admin.id, {
+        title: `✅ ${monitor.name} is back UP`,
+        body: `Recovered after ${downtimeDuration}`,
+        url: "/admin",
+        tag: `monitor-${monitor.id}-up`,
+      });
+    }
+
+    if (monitor.emailNotifications) {
+      const adminEmails = admins.filter(a => a.email).map(a => a.email!);
+      if (adminEmails.length > 0) {
+        const rendered = await renderTemplate("monitor_up", {
+          monitor_name: monitor.name,
+          monitor_url: monitor.url,
+          recovery_time: recoveryTime,
+          downtime_duration: downtimeDuration,
+        });
+        if (rendered) {
+          await sendEmailToMultiple(adminEmails, rendered.subject, rendered.body);
+        }
+      }
+    }
+
+    logActivity("monitoring", "monitor_up", {
+      targetId: monitor.id,
+      targetType: "url_monitor",
+      summary: `Monitor ${monitor.name} recovered after ${downtimeDuration}`,
+    });
+  }
+
+  async function checkSingleMonitor(monitor: Awaited<ReturnType<typeof storage.getUrlMonitor>> & {}) {
+    if (!monitor.enabled) return;
+
+    const now = new Date();
+    const lastCheck = monitor.lastCheckedAt ? new Date(monitor.lastCheckedAt).getTime() : 0;
+    if (now.getTime() - lastCheck < monitor.checkIntervalSeconds * 1000) return;
+
+    let isUp = false;
+    let failureReason = "";
+    let responseTimeMs = 0;
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), monitor.timeoutSeconds * 1000);
+      const start = Date.now();
+      const response = await fetch(monitor.url, {
+        method: "HEAD",
+        signal: controller.signal,
+        redirect: "follow",
+      });
+      responseTimeMs = Date.now() - start;
+      clearTimeout(timeout);
+
+      if (response.status === monitor.expectedStatusCode) {
+        isUp = true;
+      } else {
+        failureReason = `HTTP ${response.status} (expected ${monitor.expectedStatusCode})`;
+      }
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        failureReason = `Timeout after ${monitor.timeoutSeconds}s`;
+      } else {
+        failureReason = err.message || "Connection failed";
+      }
+    }
+
+    const prevStatus = monitor.status;
+    let newConsecutiveFailures = isUp ? 0 : monitor.consecutiveFailures + 1;
+    let newStatus = monitor.status;
+
+    if (isUp) {
+      newStatus = "up";
+    } else if (newConsecutiveFailures >= monitor.consecutiveFailuresThreshold) {
+      newStatus = "down";
+    }
+
+    await storage.updateUrlMonitor(monitor.id, {
+      lastCheckedAt: now,
+      lastResponseTimeMs: isUp ? responseTimeMs : null,
+      consecutiveFailures: newConsecutiveFailures,
+      status: newStatus,
+      lastStatusChange: newStatus !== prevStatus ? now : monitor.lastStatusChange,
+    } as any);
+
+    if (newStatus === "down" && prevStatus !== "down") {
+      const incident = await storage.createMonitorIncident({
+        monitorId: monitor.id,
+        startedAt: now,
+        failureReason,
+        notifiedDown: false,
+        notifiedUp: false,
+      });
+      await notifyAdminsMonitorDown(monitor, failureReason);
+      await storage.updateMonitorIncident(incident.id, { notifiedDown: true });
+    }
+
+    if (newStatus === "up" && prevStatus === "down") {
+      const openIncident = await storage.getOpenIncident(monitor.id);
+      if (openIncident) {
+        const downtimeSeconds = Math.round((now.getTime() - new Date(openIncident.startedAt).getTime()) / 1000);
+        await storage.updateMonitorIncident(openIncident.id, {
+          resolvedAt: now,
+          durationSeconds: downtimeSeconds,
+        });
+        await notifyAdminsMonitorUp(monitor, downtimeSeconds);
+        await storage.updateMonitorIncident(openIncident.id, { notifiedUp: true, resolvedAt: now, durationSeconds: downtimeSeconds });
+      }
+    }
+  }
+
+  async function runMonitoringLoop() {
+    try {
+      const monitors = await storage.getAllUrlMonitors();
+      for (const monitor of monitors) {
+        try {
+          await checkSingleMonitor(monitor);
+        } catch (err) {
+          console.error(`Monitor check error for ${monitor.name}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error("Monitoring loop error:", err);
+    }
+  }
+
+  setTimeout(() => runMonitoringLoop(), 5000);
+  setInterval(() => runMonitoringLoop(), 15000);
 
   return httpServer;
 }

@@ -22,12 +22,12 @@ import { z } from "zod";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy, ChevronDown, ChevronRight, ScrollText, Search, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Edit, Users, Server, AlertTriangle, Newspaper, RotateCcw, Shield, ShieldCheck, Mail, MailX, Send, Clock, Zap, FileText, RefreshCw, Bell, BellOff, MailOpen, Copy, Eye, EyeOff, RotateCw, MessageSquare, Crown, Tag, LifeBuoy, ChevronDown, ChevronRight, ScrollText, Search, ArrowLeft, Globe, Activity, Circle, ExternalLink, Pause, Play } from "lucide-react";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { Download, ImagePlus, X as XIcon } from "lucide-react";
-import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory, Download as DownloadItem } from "@shared/schema";
+import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory, Download as DownloadItem, UrlMonitor, MonitorIncident } from "@shared/schema";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -3186,6 +3186,364 @@ function LogsTab() {
   );
 }
 
+function MonitoringTab({ canManage }: { canManage: boolean }) {
+  const { toast } = useToast();
+  const { data: monitors = [], isLoading } = useQuery<UrlMonitor[]>({ queryKey: ["/api/admin/monitors"] });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<UrlMonitor | null>(null);
+  const [selectedMonitor, setSelectedMonitor] = useState<UrlMonitor | null>(null);
+
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [checkInterval, setCheckInterval] = useState("60");
+  const [expectedStatus, setExpectedStatus] = useState("200");
+  const [timeout, setTimeout_] = useState("10");
+  const [failureThreshold, setFailureThreshold] = useState("3");
+  const [emailNotif, setEmailNotif] = useState(true);
+
+  const resetForm = () => {
+    setName("");
+    setUrl("");
+    setCheckInterval("60");
+    setExpectedStatus("200");
+    setTimeout_("10");
+    setFailureThreshold("3");
+    setEmailNotif(true);
+    setEditing(null);
+  };
+
+  const openEdit = (m: UrlMonitor) => {
+    setEditing(m);
+    setName(m.name);
+    setUrl(m.url);
+    setCheckInterval(String(m.checkIntervalSeconds));
+    setExpectedStatus(String(m.expectedStatusCode));
+    setTimeout_(String(m.timeoutSeconds));
+    setFailureThreshold(String(m.consecutiveFailuresThreshold));
+    setEmailNotif(m.emailNotifications);
+    setDialogOpen(true);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const body = {
+        name,
+        url,
+        checkIntervalSeconds: parseInt(checkInterval),
+        expectedStatusCode: parseInt(expectedStatus),
+        timeoutSeconds: parseInt(timeout),
+        consecutiveFailuresThreshold: parseInt(failureThreshold),
+        emailNotifications: emailNotif,
+      };
+      if (editing) {
+        const res = await fetch(`/api/admin/monitors/${editing.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "include" });
+        if (!res.ok) throw new Error((await res.json()).message || "Failed");
+        return res.json();
+      } else {
+        const res = await fetch("/api/admin/monitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "include" });
+        if (!res.ok) throw new Error((await res.json()).message || "Failed");
+        return res.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/monitors"] });
+      setDialogOpen(false);
+      resetForm();
+      toast({ title: editing ? "Monitor updated" : "Monitor created" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/monitors/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/monitors"] });
+      toast({ title: "Monitor deleted" });
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const res = await fetch(`/api/admin/monitors/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }), credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/monitors"] }),
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "up": return "text-green-500";
+      case "down": return "text-red-500";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const getStatusBg = (status: string) => {
+    switch (status) {
+      case "up": return "bg-green-500/10";
+      case "down": return "bg-red-500/10";
+      default: return "bg-muted";
+    }
+  };
+
+  if (selectedMonitor) {
+    return <MonitorDetailView monitor={selectedMonitor} onBack={() => { setSelectedMonitor(null); queryClient.invalidateQueries({ queryKey: ["/api/admin/monitors"] }); }} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold" data-testid="text-monitoring-title">URL Monitors</h2>
+        {canManage && (
+          <Button size="sm" onClick={() => { resetForm(); setDialogOpen(true); }} data-testid="button-add-monitor">
+            <Plus className="w-4 h-4 mr-1" /> Add Monitor
+          </Button>
+        )}
+      </div>
+
+      {monitors.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Globe className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>No URL monitors configured yet.</p>
+            {canManage && <p className="text-sm mt-1">Add a monitor to start tracking URL health.</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {monitors.map(m => (
+            <Card key={m.id} className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setSelectedMonitor(m)} data-testid={`card-monitor-${m.id}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`rounded-full p-2 ${getStatusBg(m.status)}`}>
+                    <Circle className={`w-4 h-4 ${getStatusColor(m.status)} ${m.status === "up" ? "animate-status-glow fill-current" : m.status === "down" ? "fill-current" : ""}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium truncate" data-testid={`text-monitor-name-${m.id}`}>{m.name}</span>
+                      {!m.enabled && <Badge variant="secondary" className="text-xs">Paused</Badge>}
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">{m.url}</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground hidden sm:block">
+                    {m.lastCheckedAt && <p>Checked {format(new Date(m.lastCheckedAt), "MMM d, h:mm a")}</p>}
+                    {m.lastResponseTimeMs != null && m.status === "up" && <p>{m.lastResponseTimeMs}ms</p>}
+                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleMutation.mutate({ id: m.id, enabled: !m.enabled })} data-testid={`button-toggle-monitor-${m.id}`}>
+                        {m.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(m)} data-testid={`button-edit-monitor-${m.id}`}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" data-testid={`button-delete-monitor-${m.id}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Monitor</AlertDialogTitle>
+                            <AlertDialogDescription>This will permanently delete "{m.name}" and all its incident history.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(m.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={v => { if (!v) resetForm(); setDialogOpen(v); }}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Monitor" : "Add Monitor"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="My Website" data-testid="input-monitor-name" />
+            </div>
+            <div>
+              <Label>URL</Label>
+              <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://example.com" data-testid="input-monitor-url" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Check Interval (sec)</Label>
+                <Input type="number" value={checkInterval} onChange={e => setCheckInterval(e.target.value)} data-testid="input-monitor-interval" />
+              </div>
+              <div>
+                <Label>Expected Status</Label>
+                <Input type="number" value={expectedStatus} onChange={e => setExpectedStatus(e.target.value)} data-testid="input-monitor-status-code" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Timeout (sec)</Label>
+                <Input type="number" value={timeout} onChange={e => setTimeout_(e.target.value)} data-testid="input-monitor-timeout" />
+              </div>
+              <div>
+                <Label>Failure Threshold</Label>
+                <Input type="number" value={failureThreshold} onChange={e => setFailureThreshold(e.target.value)} data-testid="input-monitor-threshold" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={emailNotif} onCheckedChange={setEmailNotif} data-testid="switch-monitor-email" />
+              <Label>Email notifications</Label>
+            </div>
+            <Button className="w-full" onClick={() => saveMutation.mutate()} disabled={!name || !url || saveMutation.isPending} data-testid="button-save-monitor">
+              {saveMutation.isPending ? "Saving..." : editing ? "Update Monitor" : "Create Monitor"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function MonitorDetailView({ monitor, onBack }: { monitor: UrlMonitor; onBack: () => void }) {
+  const { data: liveMonitor } = useQuery<UrlMonitor>({ queryKey: ["/api/admin/monitors", monitor.id] });
+  const { data: incidents = [], isLoading } = useQuery<MonitorIncident[]>({ queryKey: ["/api/admin/monitors", monitor.id, "incidents"] });
+  const m = liveMonitor || monitor;
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "up": return "text-green-500";
+      case "down": return "text-red-500";
+      default: return "text-muted-foreground";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "up": return "Operational";
+      case "down": return "Down";
+      default: return "Unknown";
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const min = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const parts: string[] = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (min > 0) parts.push(`${min}m`);
+    parts.push(`${s}s`);
+    return parts.join(" ");
+  };
+
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack} className="gap-1 -ml-2 text-muted-foreground hover:text-foreground" data-testid="button-monitor-back">
+        <ArrowLeft className="w-4 h-4" /> Back to Monitors
+      </Button>
+
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Circle className={`w-5 h-5 ${getStatusColor(m.status)} ${m.status === "up" ? "animate-status-glow fill-current" : m.status === "down" ? "fill-current" : ""}`} />
+            <div>
+              <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
+              <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:underline flex items-center gap-1" data-testid="link-monitor-url">
+                {m.url} <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <Badge className={`ml-auto ${m.status === "up" ? "bg-green-500/10 text-green-600 border-green-500/20" : m.status === "down" ? "bg-red-500/10 text-red-600 border-red-500/20" : ""}`} variant="outline">
+              {getStatusLabel(m.status)}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-muted-foreground text-xs">Check Interval</p>
+              <p className="font-medium">{m.checkIntervalSeconds}s</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-muted-foreground text-xs">Response Time</p>
+              <p className="font-medium">{m.lastResponseTimeMs != null ? `${m.lastResponseTimeMs}ms` : "—"}</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-muted-foreground text-xs">Last Checked</p>
+              <p className="font-medium">{m.lastCheckedAt ? format(new Date(m.lastCheckedAt), "h:mm:ss a") : "Never"}</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-muted-foreground text-xs">Status Since</p>
+              <p className="font-medium">{m.lastStatusChange ? format(new Date(m.lastStatusChange), "MMM d, h:mm a") : "—"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <h3 className="text-base font-semibold mb-3" data-testid="text-incidents-title">Incident History</h3>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+          </div>
+        ) : incidents.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center text-muted-foreground">
+              <Activity className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>No incidents recorded yet.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {incidents.map(inc => (
+              <Card key={inc.id} data-testid={`card-incident-${inc.id}`}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 rounded-full p-1.5 ${inc.resolvedAt ? "bg-green-500/10" : "bg-red-500/10"}`}>
+                      {inc.resolvedAt ? <Activity className="w-3.5 h-3.5 text-green-500" /> : <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={inc.resolvedAt ? "secondary" : "destructive"} className="text-xs">
+                          {inc.resolvedAt ? "Resolved" : "Ongoing"}
+                        </Badge>
+                        {inc.durationSeconds != null && (
+                          <span className="text-xs text-muted-foreground">Duration: {formatDuration(inc.durationSeconds)}</span>
+                        )}
+                      </div>
+                      {inc.failureReason && <p className="text-sm mt-1">{inc.failureReason}</p>}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Started: {format(new Date(inc.startedAt), "MMM d, yyyy h:mm:ss a")}
+                        {inc.resolvedAt && <> · Resolved: {format(new Date(inc.resolvedAt), "MMM d, yyyy h:mm:ss a")}</>}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ALL_PERMISSIONS = [
   { category: "Users", perms: ["users.view", "users.manage"] },
   { category: "Services", perms: ["services.view", "services.manage"] },
@@ -3200,6 +3558,7 @@ const ALL_PERMISSIONS = [
   { category: "Support Tickets", perms: ["support_tickets"] },
   { category: "Admin Chat", perms: ["admin_chat"] },
   { category: "Logs", perms: ["logs.view"] },
+  { category: "URL Monitoring", perms: ["monitoring.view", "monitoring.manage"] },
 ];
 
 function AdminManagementTab() {
@@ -4030,6 +4389,7 @@ const TILE_PERM_MAP: Record<string, string> = {
   "support-tickets": "support_tickets",
   "admin-chat": "admin_chat",
   "logs": "logs.view",
+  "monitoring": "monitoring.view",
 };
 
 const TILE_MANAGE_MAP: Record<string, string> = {
@@ -4043,6 +4403,7 @@ const TILE_MANAGE_MAP: Record<string, string> = {
   "reports-requests": "reports.manage",
   "email-templates": "email_templates.manage",
   "downloads": "downloads.manage",
+  "monitoring": "monitoring.manage",
 };
 
 export default function AdminPortal() {
@@ -4091,6 +4452,7 @@ export default function AdminPortal() {
     { key: "downloads", label: "Downloads", icon: Download, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { key: "support-tickets", label: "Support Tickets", icon: LifeBuoy, color: "text-sky-500", bg: "bg-sky-500/10", navigateTo: "/tickets" },
     { key: "admin-chat", label: "Admin Chat", icon: MessageSquare, color: "text-pink-500", bg: "bg-pink-500/10" },
+    { key: "monitoring", label: "URL Monitoring", icon: Globe, color: "text-lime-500", bg: "bg-lime-500/10" },
     { key: "logs", label: "Logs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" },
     { key: "admin-management", label: "Admin Management", icon: Crown, color: "text-yellow-500", bg: "bg-yellow-500/10", masterOnly: true },
   ];
@@ -4120,6 +4482,7 @@ export default function AdminPortal() {
       case "email-templates": return <EmailTemplatesTab canManage={canManageSection("email-templates")} />;
       case "downloads": return <DownloadsTab canManage={canManageSection("downloads")} />;
       case "admin-chat": return <AdminChatTab />;
+      case "monitoring": return <MonitoringTab canManage={canManageSection("monitoring")} />;
       case "logs": return <LogsTab />;
       case "admin-management": return isMasterAdmin ? <AdminManagementTab /> : null;
       default: return null;

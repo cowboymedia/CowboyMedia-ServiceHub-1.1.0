@@ -398,6 +398,31 @@ export const DEFAULT_EMAIL_TEMPLATES = [
     availableVariables: ["customer_name", "missing_items"],
     description: "One-time email sent 2 days after registration if push notifications or service subscriptions aren't set up",
   },
+  {
+    templateKey: "monitor_down",
+    name: "URL Monitor Down",
+    subject: "⚠️ Monitor Alert: {monitor_name} is DOWN",
+    body: `<h2 style="color:#dc2626;">Monitor Down Alert</h2>
+<p>The URL monitor <strong>{monitor_name}</strong> has detected a failure.</p>
+<p><strong>URL:</strong> {monitor_url}</p>
+<p><strong>Reason:</strong> {failure_reason}</p>
+<p><strong>Time:</strong> {failure_time}</p>
+<p>The monitor will continue checking and you will be notified when the service recovers.</p>`,
+    availableVariables: ["monitor_name", "monitor_url", "failure_reason", "failure_time"],
+    description: "Sent to admins when a URL monitor detects the target is down",
+  },
+  {
+    templateKey: "monitor_up",
+    name: "URL Monitor Recovered",
+    subject: "✅ Monitor Alert: {monitor_name} is back UP",
+    body: `<h2 style="color:#16a34a;">Monitor Recovered</h2>
+<p>The URL monitor <strong>{monitor_name}</strong> has recovered and is now responding normally.</p>
+<p><strong>URL:</strong> {monitor_url}</p>
+<p><strong>Recovery Time:</strong> {recovery_time}</p>
+<p><strong>Downtime Duration:</strong> {downtime_duration}</p>`,
+    availableVariables: ["monitor_name", "monitor_url", "recovery_time", "downtime_duration"],
+    description: "Sent to admins when a URL monitor recovers from a down state",
+  },
 ];
 
 export async function seedEmailTemplates(): Promise<void> {
