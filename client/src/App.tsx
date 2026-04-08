@@ -273,6 +273,10 @@ function PrivateMessagePopup() {
           queryClient.invalidateQueries({ queryKey: ["/api/private-messages"] });
           queryClient.invalidateQueries({ queryKey: ["/api/private-messages/unread-count"] });
         }
+        if (data.type === "thread_message" && data.message) {
+          queryClient.invalidateQueries({ queryKey: ["/api/message-threads"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/message-threads/unread-count"] });
+        }
       } catch {}
     };
 

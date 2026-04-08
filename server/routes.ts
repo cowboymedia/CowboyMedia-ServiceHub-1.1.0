@@ -1975,7 +1975,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   // === Message Threads (Conversational Messaging) ===
 
-  app.post("/api/message-threads", requirePermission("messages.view", "messages.manage"), async (req, res) => {
+  app.post("/api/message-threads", requirePermission("messages.manage"), async (req, res) => {
     try {
       const { customerId, subject, body } = req.body;
       if (!customerId || !subject || !body) {
@@ -2165,10 +2165,14 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
     }
   });
 
-  app.delete("/api/message-threads/:id", requirePermission("messages.view", "messages.manage"), async (req, res) => {
+  app.delete("/api/message-threads/:id", requirePermission("messages.manage"), async (req, res) => {
     try {
       const thread = await storage.getMessageThread(req.params.id);
       if (!thread) return res.status(404).json({ message: "Thread not found" });
+      const delUser = await storage.getUser(req.session.userId!);
+      if (thread.adminId !== req.session.userId && delUser?.role !== "master_admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
       await storage.deleteMessageThread(req.params.id);
       res.json({ message: "Thread deleted" });
     } catch (e: any) {

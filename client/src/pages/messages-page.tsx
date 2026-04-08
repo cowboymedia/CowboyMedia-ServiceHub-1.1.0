@@ -10,10 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, ArrowLeft, Send, Shield, User as UserIcon, Clock, ChevronDown } from "lucide-react";
+import { Mail, ArrowLeft, Send, Shield, User as UserIcon, Clock, ChevronDown, Inbox } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { MessageThread, ThreadMessage } from "@shared/schema";
+import type { MessageThread, ThreadMessage, PrivateMessage } from "@shared/schema";
 
 type EnrichedThread = MessageThread & {
   adminName: string;
@@ -345,6 +345,11 @@ export default function MessagesPage() {
     refetchInterval: 15000,
   });
 
+  const { data: legacyMessages } = useQuery<PrivateMessage[]>({
+    queryKey: ["/api/private-messages"],
+    enabled: !isAdmin,
+  });
+
   if (params.id) {
     return (
       <div className="h-full flex flex-col">
@@ -416,6 +421,30 @@ export default function MessagesPage() {
                     {t.lastMessage ? format(new Date(t.lastMessage.createdAt), "MMM d") : format(new Date(t.createdAt), "MMM d")}
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {legacyMessages && legacyMessages.length > 0 && (
+        <div className="space-y-3 mt-6">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Inbox className="w-5 h-5" /> Previous Messages
+          </h2>
+          <p className="text-xs text-muted-foreground">One-way messages received before the conversation system.</p>
+          {legacyMessages.map((msg) => (
+            <Card key={msg.id} data-testid={`card-legacy-message-${msg.id}`}>
+              <CardContent className="p-3 sm:p-4 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-sm font-medium truncate ${!msg.readAt ? "text-foreground" : "text-muted-foreground"}`}>{msg.subject}</p>
+                  {!msg.readAt && <Badge variant="destructive" className="text-[10px] h-5">New</Badge>}
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{msg.body}</p>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {format(new Date(msg.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                </p>
               </CardContent>
             </Card>
           ))}

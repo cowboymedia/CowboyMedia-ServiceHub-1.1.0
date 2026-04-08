@@ -21,7 +21,7 @@ function syncAppBadge(count: number) {
 
 const BADGE_QUERY_KEYS = [
   "/api/ticket-notifications/unread-count",
-  "/api/private-messages/unread-count",
+  "/api/message-threads/unread-count",
   "/api/report-notifications/unread-count",
   "/api/content-notifications/counts",
 ];
@@ -37,7 +37,7 @@ export function useAppBadge() {
   });
 
   const { data: messageData } = useQuery<{ count: number }>({
-    queryKey: ["/api/private-messages/unread-count"],
+    queryKey: ["/api/message-threads/unread-count"],
     refetchInterval: 15000,
     enabled: !!user,
   });

@@ -1829,6 +1829,10 @@ function MessagesTab({ canManage = true }: { canManage?: boolean }) {
     queryKey: ["/api/message-threads"],
     refetchInterval: 15000,
   });
+  const { data: sentMessages } = useQuery<import("@shared/schema").PrivateMessage[]>({
+    queryKey: ["/api/admin/private-messages/sent"],
+  });
+  const userMap = new Map(users?.map((u) => [u.id, u.fullName]) || []);
 
   const customers = users?.filter((u) => u.role === "customer") || [];
 
@@ -1975,6 +1979,26 @@ function MessagesTab({ canManage = true }: { canManage?: boolean }) {
                     </AlertDialog>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {sentMessages && sentMessages.length > 0 && (
+        <div className="space-y-3 mt-6">
+          <h4 className="font-medium text-sm text-muted-foreground">Legacy Sent Messages ({sentMessages.length})</h4>
+          <p className="text-xs text-muted-foreground">One-way messages sent before the conversation system.</p>
+          {sentMessages.map((msg) => (
+            <Card key={msg.id} data-testid={`card-legacy-sent-${msg.id}`}>
+              <CardContent className="p-3 sm:p-4 space-y-1">
+                <p className="text-sm font-medium truncate">{msg.subject}</p>
+                <p className="text-xs text-muted-foreground">To: {userMap.get(msg.recipientId) || "Unknown"}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{msg.body}</p>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {format(new Date(msg.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                </p>
               </CardContent>
             </Card>
           ))}
