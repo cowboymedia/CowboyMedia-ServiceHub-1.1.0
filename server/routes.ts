@@ -3133,12 +3133,12 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const openIncident = await storage.getOpenIncident(monitor.id);
       if (openIncident) {
         const downtimeSeconds = Math.round((now.getTime() - new Date(openIncident.startedAt).getTime()) / 1000);
+        await notifyAdminsMonitorUp(monitor, downtimeSeconds);
         await storage.updateMonitorIncident(openIncident.id, {
           resolvedAt: now,
           durationSeconds: downtimeSeconds,
+          notifiedUp: true,
         });
-        await notifyAdminsMonitorUp(monitor, downtimeSeconds);
-        await storage.updateMonitorIncident(openIncident.id, { notifiedUp: true, resolvedAt: now, durationSeconds: downtimeSeconds });
       }
     }
   }
