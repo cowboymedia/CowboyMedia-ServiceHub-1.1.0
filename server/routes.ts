@@ -152,9 +152,9 @@ async function getAdminCategoryAccess(userId: string): Promise<string[]> {
 }
 
 const wsClients = new Set<WebSocket>();
-const ticketViewerCounts = new Map<string, Map<string, number>>();
+const ticketViewerCounts = new Map<string, Map<string, { count: number; role: string }>>();
 const adminChatViewerCounts = new Map<string, Map<string, number>>();
-const wsUserMap = new Map<WebSocket, { userId: string; ticketId: string }>();
+const wsUserMap = new Map<WebSocket, { userId: string; ticketId: string; userRole: string }>();
 const wsAdminChatMap = new Map<WebSocket, { userId: string; threadId: string }>();
 
 function broadcast(data: any) {
@@ -175,23 +175,44 @@ function broadcastExcept(data: any, excludeWs: WebSocket) {
   });
 }
 
-function addTicketViewer(ticketId: string, userId: string): void {
+function addTicketViewer(ticketId: string, userId: string, userRole: string): void {
   if (!ticketViewerCounts.has(ticketId)) ticketViewerCounts.set(ticketId, new Map());
   const users = ticketViewerCounts.get(ticketId)!;
-  users.set(userId, (users.get(userId) || 0) + 1);
+  const existing = users.get(userId);
+  const wasThere = existing && existing.count > 0;
+  users.set(userId, { count: (existing?.count || 0) + 1, role: userRole });
+  if (!wasThere) {
+    broadcast({ type: "ticket_presence", ticketId, userId, userRole, status: "online" });
+  }
 }
 
 function removeTicketViewer(ticketId: string, userId: string): void {
   const users = ticketViewerCounts.get(ticketId);
   if (!users) return;
-  const count = (users.get(userId) || 0) - 1;
-  if (count <= 0) { users.delete(userId); } else { users.set(userId, count); }
+  const existing = users.get(userId);
+  if (!existing) return;
+  const newCount = existing.count - 1;
+  if (newCount <= 0) {
+    const role = existing.role;
+    users.delete(userId);
+    broadcast({ type: "ticket_presence", ticketId, userId, userRole: role, status: "offline" });
+  } else {
+    users.set(userId, { ...existing, count: newCount });
+  }
   if (users.size === 0) ticketViewerCounts.delete(ticketId);
+}
+
+function getTicketViewers(ticketId: string): { userId: string; userRole: string }[] {
+  const users = ticketViewerCounts.get(ticketId);
+  if (!users) return [];
+  return Array.from(users.entries()).map(([userId, info]) => ({ userId, userRole: info.role }));
 }
 
 function isUserViewingTicket(userId: string, ticketId: string): boolean {
   const users = ticketViewerCounts.get(ticketId);
-  return users ? (users.get(userId) || 0) > 0 : false;
+  if (!users) return false;
+  const existing = users.get(userId);
+  return existing ? existing.count > 0 : false;
 }
 
 const TICKET_EMAIL_COOLDOWN_MS = 5 * 60 * 1000;
@@ -2808,8 +2829,13 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           if (prev) {
             removeTicketViewer(prev.ticketId, prev.userId);
           }
-          wsUserMap.set(ws, { userId: data.userId, ticketId: data.ticketId });
-          addTicketViewer(data.ticketId, data.userId);
+          const role = data.userRole || "user";
+          wsUserMap.set(ws, { userId: data.userId, ticketId: data.ticketId, userRole: role });
+          addTicketViewer(data.ticketId, data.userId, role);
+          const viewers = getTicketViewers(data.ticketId);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ticket_viewers", ticketId: data.ticketId, viewers }));
+          }
         }
         if (data.type === "left_ticket" && data.ticketId && data.userId) {
           removeTicketViewer(data.ticketId, data.userId);

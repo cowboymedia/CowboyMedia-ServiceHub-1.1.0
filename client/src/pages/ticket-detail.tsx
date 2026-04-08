@@ -1,19 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { format } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock, MoreVertical } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock, MoreVertical, ChevronDown, AlertCircle, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -21,6 +20,48 @@ import { useToast } from "@/hooks/use-toast";
 import type { Ticket, TicketMessage, Service, User, QuickResponse, TicketCategory } from "@shared/schema";
 
 type EnrichedTicketMessage = TicketMessage & { senderName?: string; senderRole?: string };
+
+type OptimisticMessage = {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  message: string;
+  imageUrl: string | null;
+  createdAt: string;
+  senderName: string;
+  senderRole: string;
+  status: "sending" | "failed";
+  imageFile?: File;
+};
+
+function BouncingDots() {
+  return (
+    <span className="inline-flex items-center gap-0.5" data-testid="bouncing-dots">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
+          style={{
+            animation: "bounce-dot 1.4s infinite ease-in-out both",
+            animationDelay: `${i * 0.16}s`,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes bounce-dot {
+          0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+    </span>
+  );
+}
+
+function formatDateSeparator(date: Date): string {
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  return format(date, "MMMM d, yyyy");
+}
 
 function getFileType(url: string): "image" | "video" | "other" {
   const ext = url.split(".").pop()?.toLowerCase() || "";
@@ -80,12 +121,17 @@ export default function TicketDetail() {
   const [transferToAdminId, setTransferToAdminId] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [onlineViewers, setOnlineViewers] = useState<Map<string, string>>(new Map());
+  const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
+  const isNearBottomRef = useRef(true);
   const searchParams = new URLSearchParams(window.location.search);
   const originTicketId = searchParams.get("from");
   const originTicketSubject = searchParams.get("fromSubject");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef<number>(0);
@@ -146,8 +192,10 @@ export default function TicketDetail() {
 
   const userIdRef = useRef<string | null>(null);
   const userNameRef = useRef<string | null>(null);
+  const userRoleRef = useRef<string>("user");
   userIdRef.current = user?.id ?? null;
   userNameRef.current = user?.fullName ?? null;
+  userRoleRef.current = isAdmin ? "admin" : "user";
 
   useEffect(() => {
     markTicketRead();
@@ -166,7 +214,7 @@ export default function TicketDetail() {
 
       ws.onopen = () => {
         if (userIdRef.current) {
-          ws!.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current }));
+          ws!.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current, userRole: userRoleRef.current }));
         }
       };
 
@@ -185,6 +233,21 @@ export default function TicketDetail() {
           }
           if (data.type === "ticket_updated" && data.ticket?.id === params.id) {
             queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id] });
+          }
+          if (data.type === "ticket_presence" && data.ticketId === params.id && data.userId !== userIdRef.current) {
+            setOnlineViewers((prev) => {
+              const next = new Map(prev);
+              if (data.status === "online") next.set(data.userId, data.userRole || "user");
+              else next.delete(data.userId);
+              return next;
+            });
+          }
+          if (data.type === "ticket_viewers" && data.ticketId === params.id) {
+            const viewers = (data.viewers as { userId: string; userRole: string }[])
+              .filter((v) => v.userId !== userIdRef.current);
+            const map = new Map<string, string>();
+            viewers.forEach((v) => map.set(v.userId, v.userRole));
+            setOnlineViewers(map);
           }
         } catch {}
       };
@@ -208,7 +271,7 @@ export default function TicketDetail() {
         markTicketRead();
         const current = wsRef.current;
         if (current && current.readyState === WebSocket.OPEN && userIdRef.current) {
-          current.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current }));
+          current.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: userIdRef.current, userRole: userRoleRef.current }));
         } else if (!current || current.readyState === WebSocket.CLOSED) {
           connect();
         }
@@ -232,7 +295,7 @@ export default function TicketDetail() {
   useEffect(() => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN && user?.id) {
-      ws.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: user.id }));
+      ws.send(JSON.stringify({ type: "viewing_ticket", ticketId: params.id, userId: user.id, userRole: isAdmin ? "admin" : "user" }));
     }
   }, [user?.id, params.id]);
 
@@ -250,6 +313,11 @@ export default function TicketDetail() {
     setCloseDialogOpen(false);
     setMessage("");
     setImageFile(null);
+    setOptimisticMessages([]);
+    setOnlineViewers(new Map());
+    setShowNewMessagesPill(false);
+    isNearBottomRef.current = true;
+    prevMessageCountRef.current = 0;
 
     cleanupBodyStyles();
     const interval = setInterval(cleanupBodyStyles, 50);
@@ -257,9 +325,34 @@ export default function TicketDetail() {
     return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [params.id]);
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    setShowNewMessagesPill(false);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 100;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    isNearBottomRef.current = nearBottom;
+    if (nearBottom) setShowNewMessagesPill(false);
+  }, []);
+
+  const prevMessageCountRef = useRef(0);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const count = messages?.length || 0;
+    if (count > prevMessageCountRef.current && prevMessageCountRef.current > 0) {
+      if (isNearBottomRef.current) {
+        scrollToBottom();
+      } else {
+        setShowNewMessagesPill(true);
+      }
+    } else if (count > 0 && prevMessageCountRef.current === 0) {
+      scrollToBottom("auto");
+    }
+    prevMessageCountRef.current = count;
+  }, [messages, scrollToBottom]);
 
   const sendTypingEvent = () => {
     const now = Date.now();
@@ -271,29 +364,79 @@ export default function TicketDetail() {
     }
   };
 
-  const sendMutation = useMutation({
-    mutationFn: async () => {
-      const formData = new FormData();
-      formData.append("message", message);
-      if (imageFile) formData.append("image", imageFile);
+  const doSendMessage = useCallback((msgText: string, imgFile: File | null, optimisticId?: string) => {
+    const tempId = optimisticId || `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimistic: OptimisticMessage = {
+      id: tempId,
+      ticketId: params.id!,
+      senderId: user?.id || "",
+      message: msgText,
+      imageUrl: null,
+      createdAt: new Date().toISOString(),
+      senderName: user?.fullName || "You",
+      senderRole: isAdmin ? "admin" : "user",
+      status: "sending",
+      imageFile: imgFile || undefined,
+    };
 
-      const res = await fetch(`/api/tickets/${params.id}/messages`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
+    if (!optimisticId) {
+      setOptimisticMessages((prev) => [...prev, optimistic]);
+    } else {
+      setOptimisticMessages((prev) => prev.map((m) => m.id === optimisticId ? { ...m, status: "sending" as const } : m));
+    }
+
+    if (isNearBottomRef.current) {
+      setTimeout(() => scrollToBottom(), 50);
+    }
+
+    const formData = new FormData();
+    formData.append("message", msgText);
+    if (imgFile) formData.append("image", imgFile);
+
+    fetch(`/api/tickets/${params.id}/messages`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to send");
+        return res.json();
+      })
+      .then(() => {
+        setOptimisticMessages((prev) => prev.filter((m) => m.id !== tempId));
+        queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
+      })
+      .catch(() => {
+        setOptimisticMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, status: "failed" as const } : m));
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
-      setMessage("");
-      setImageFile(null);
-    },
-    onError: (e: Error) => {
-      toast({ title: "Failed to send message", description: e.message, variant: "destructive" });
-    },
-  });
+  }, [params.id, user, isAdmin, scrollToBottom]);
+
+  const handleSend = useCallback(() => {
+    const msgText = message.trim();
+    const imgFile = imageFile;
+    if (!msgText && !imgFile) return;
+    setMessage("");
+    setImageFile(null);
+    doSendMessage(msgText, imgFile);
+    setTimeout(() => {
+      const el = messageInputRef.current;
+      if (el) {
+        el.style.height = "auto";
+        el.focus();
+      }
+    }, 0);
+  }, [message, imageFile, doSendMessage]);
+
+  const retryMessage = useCallback((msg: OptimisticMessage) => {
+    doSendMessage(msg.message, msg.imageFile || null, msg.id);
+  }, [doSendMessage]);
+
+  const allMessages = useMemo(() => {
+    const real = (messages || []) as (EnrichedTicketMessage & { _optimistic?: false })[];
+    const realIds = new Set(real.map((m) => m.id));
+    const pending = optimisticMessages.filter((m) => !realIds.has(m.id));
+    return [...real, ...pending.map((m) => ({ ...m, _optimistic: true as const }))];
+  }, [messages, optimisticMessages]);
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
@@ -414,6 +557,19 @@ export default function TicketDetail() {
               <Badge variant={ticket.priority === "high" ? "destructive" : "secondary"} className="text-xs capitalize">{ticket.priority}</Badge>
               {serviceName && <Badge variant="secondary" className="text-xs">{serviceName}</Badge>}
               {categoryName && <Badge variant="outline" className="text-xs">{categoryName}</Badge>}
+              {(() => {
+                const otherPartyRole = isAdmin ? "user" : "admin";
+                const hasOtherParty = Array.from(onlineViewers.values()).some((role) =>
+                  otherPartyRole === "admin" ? (role === "admin" || role === "master_admin") : role === "user"
+                );
+                const label = isAdmin ? "Customer" : "Support";
+                return (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-testid="presence-indicator">
+                    <span className={`w-2 h-2 rounded-full ${hasOtherParty ? "bg-green-500" : "bg-gray-400"}`} />
+                    {hasOtherParty ? `${label} online` : `${label} away`}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -728,10 +884,15 @@ export default function TicketDetail() {
         </Dialog>
       )}
 
-      <Card className="flex-1 flex flex-col min-h-0">
-        <CardContent className="flex-1 flex flex-col min-h-0 p-0">
-          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
-            <div className="p-4 border-b bg-card">
+      <Card className="flex-1 flex flex-col min-h-0 relative">
+        <CardContent className="flex-1 flex flex-col min-h-0 p-0 relative">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto overscroll-contain"
+            style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          >
+            <div className="p-3 sm:p-4 border-b bg-card">
               <p className="text-sm" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} data-testid="text-ticket-description">{ticket.description}</p>
               {ticket.imageUrl && (
                 <ClickableImage src={ticket.imageUrl} alt="Ticket attachment" className="mt-2 max-w-[100px] max-h-16 object-cover rounded-md cursor-pointer" />
@@ -742,7 +903,7 @@ export default function TicketDetail() {
             </div>
 
             {ticket.status === "closed" && (
-              <div className="mx-4 mt-4 space-y-2">
+              <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 space-y-2">
                 {ticket.closedBy && (
                   <Badge variant="outline" className="text-xs" data-testid="badge-closed-by">
                     {ticket.closedBy === ticket.customerId ? "Closed by Customer" : "Closed by Admin"}
@@ -763,42 +924,101 @@ export default function TicketDetail() {
               </div>
             )}
 
-            <div className="p-4">
+            <div className="p-3 sm:p-4">
             {messagesLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
               </div>
-            ) : !messages || messages.length === 0 ? (
+            ) : allMessages.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No messages yet. Start the conversation below.</p>
             ) : (
-              <div className="space-y-4">
-                {messages.map((msg) => {
+              <div className="space-y-3 sm:space-y-4">
+                {allMessages.map((msg, idx) => {
                   const isMe = msg.senderId === user?.id;
                   const isAdminSender = msg.senderRole === "admin";
                   const displayName = isMe ? "You" : (msg.senderName || "Support");
+                  const isOptimistic = "_optimistic" in msg && msg._optimistic;
+                  const optimisticData = isOptimistic ? optimisticMessages.find((o) => o.id === msg.id) : null;
+                  const isFailed = optimisticData?.status === "failed";
+                  const isSending = optimisticData?.status === "sending";
+
+                  const msgDate = new Date(msg.createdAt);
+                  const prevMsg = idx > 0 ? allMessages[idx - 1] : null;
+                  const prevDate = prevMsg ? new Date(prevMsg.createdAt) : null;
+                  const showDateSep = !prevDate ||
+                    msgDate.toDateString() !== prevDate.toDateString();
+
                   return (
-                    <div key={msg.id} className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`} data-testid={`message-${msg.id}`}>
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarFallback className="text-xs">
-                          {isMe ? (user?.fullName?.[0] || "U") : (msg.senderName?.[0] || "S")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className={`max-w-[70%] min-w-0 space-y-1 ${isMe ? "items-end" : ""}`}>
-                        <div className={isMe ? "text-right" : ""} data-testid={`text-chat-sender-${msg.id}`}>
-                          <p className="text-xs font-medium">{displayName}</p>
-                          {isAdminSender && !isMe && (
-                            <p className="text-[10px] text-muted-foreground">CowboyMedia Support</p>
-                          )}
+                    <div key={msg.id}>
+                      {showDateSep && (
+                        <div className="flex items-center gap-3 my-3 sm:my-4" data-testid={`date-separator-${msg.id}`}>
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-xs text-muted-foreground font-medium px-2">{formatDateSeparator(msgDate)}</span>
+                          <div className="flex-1 h-px bg-border" />
                         </div>
-                        <div className={`rounded-md p-3 text-sm whitespace-pre-wrap overflow-hidden ${isMe ? "bg-primary text-primary-foreground" : "bg-accent"}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                          {msg.message}
-                          {msg.imageUrl && (
-                            <FileAttachment url={msg.imageUrl} />
-                          )}
+                      )}
+                      <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`} data-testid={`message-${msg.id}`}>
+                        <Avatar className="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 mt-0.5">
+                          <AvatarFallback className="text-xs">
+                            {isMe ? (user?.fullName?.[0] || "U") : (msg.senderName?.[0] || "S")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className={`max-w-[80%] sm:max-w-[70%] min-w-0 space-y-0.5 ${isMe ? "items-end" : ""}`}>
+                          <div className={isMe ? "text-right" : ""} data-testid={`text-chat-sender-${msg.id}`}>
+                            <p className="text-xs font-medium">{displayName}</p>
+                            {isAdminSender && !isMe && (
+                              <p className="text-[10px] text-muted-foreground">CowboyMedia Support</p>
+                            )}
+                          </div>
+                          <div
+                            className={`rounded-lg p-2.5 sm:p-3 text-sm whitespace-pre-wrap overflow-hidden ${
+                              isFailed
+                                ? "bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300"
+                                : isSending
+                                  ? "bg-primary/70 text-primary-foreground opacity-70"
+                                  : isMe
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-accent"
+                            }`}
+                            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                          >
+                            {msg.message}
+                            {msg.imageUrl && (
+                              <FileAttachment url={msg.imageUrl} />
+                            )}
+                            {isOptimistic && optimisticData?.imageFile && (
+                              <div className="mt-1 flex items-center gap-1.5 text-xs opacity-70">
+                                <Paperclip className="w-3 h-3" />
+                                <span className="truncate">{optimisticData.imageFile.name}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className={`flex items-center gap-1.5 ${isMe ? "justify-end" : ""}`}>
+                            {isSending && (
+                              <span className="text-[10px] text-muted-foreground italic" data-testid={`status-sending-${msg.id}`}>Sending...</span>
+                            )}
+                            {isFailed && (
+                              <div className="flex items-center gap-1.5" data-testid={`status-failed-${msg.id}`}>
+                                <AlertCircle className="w-3 h-3 text-red-500" />
+                                <span className="text-[10px] text-red-500">Failed to send</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-1.5 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                  onClick={() => retryMessage(optimisticData!)}
+                                  data-testid={`button-retry-${msg.id}`}
+                                >
+                                  <RotateCcw className="w-3 h-3 mr-0.5" /> Retry
+                                </Button>
+                              </div>
+                            )}
+                            {!isOptimistic && (
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                {format(new Date(msg.createdAt), "h:mm a")}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className={`text-xs text-muted-foreground ${isMe ? "text-right" : ""}`}>
-                          {format(new Date(msg.createdAt), "h:mm a")}
-                        </p>
                       </div>
                     </div>
                   );
@@ -808,6 +1028,20 @@ export default function TicketDetail() {
             )}
             </div>
           </div>
+
+          {showNewMessagesPill && (
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-full shadow-lg text-xs gap-1 px-3 py-1.5"
+                onClick={() => scrollToBottom()}
+                data-testid="button-new-messages"
+              >
+                New messages <ChevronDown className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
 
           {ticket.status === "open" && isAdmin && !ticket.claimedBy && (
             <div className="p-3 border-t bg-accent/50">
@@ -826,13 +1060,16 @@ export default function TicketDetail() {
           )}
 
           {typingUser && (
-            <div className="px-4 py-1" data-testid="typing-indicator">
-              <p className="text-xs text-muted-foreground italic">{typingUser} is typing<span className="animate-pulse">...</span></p>
+            <div className="px-3 sm:px-4 py-1" data-testid="typing-indicator">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="italic">{typingUser}</span>
+                <BouncingDots />
+              </p>
             </div>
           )}
 
           {ticket.status === "open" && (!isAdmin || ticket.claimedBy === user?.id) && (
-            <div className="p-3 border-t">
+            <div className="p-2 sm:p-3 border-t">
               {imageFile && (
                 <div className="flex items-center gap-2 mb-2 p-2 bg-accent rounded-md">
                   {imageFile.type.startsWith("video/") ? <Film className="w-4 h-4 flex-shrink-0" /> :
@@ -844,9 +1081,7 @@ export default function TicketDetail() {
                   </Button>
                 </div>
               )}
-              <div
-                className="flex items-center gap-2"
-              >
+              <div className="flex items-end gap-1.5 sm:gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -858,6 +1093,7 @@ export default function TicketDetail() {
                   type="button"
                   size="icon"
                   variant="ghost"
+                  className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10"
                   onClick={() => fileInputRef.current?.click()}
                   data-testid="button-attach-image"
                 >
@@ -866,7 +1102,7 @@ export default function TicketDetail() {
                 {isAdmin && quickResponses && quickResponses.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button type="button" size="icon" variant="ghost" data-testid="button-quick-responses">
+                      <Button type="button" size="icon" variant="ghost" className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10" data-testid="button-quick-responses">
                         <Zap className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -879,21 +1115,35 @@ export default function TicketDetail() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                <Input
+                <Textarea
                   ref={messageInputRef}
                   value={message}
                   onChange={(e) => {
                     setMessage(e.target.value);
                     if (e.target.value.trim()) sendTypingEvent();
+                    const el = e.target;
+                    el.style.height = "auto";
+                    el.style.height = Math.min(el.scrollHeight, 120) + "px";
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") e.preventDefault();
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleSend();
+                    }
                   }}
                   placeholder="Type a message..."
-                  className="flex-1"
+                  className="flex-1 min-h-[36px] max-h-[120px] resize-none text-sm py-2 leading-5"
+                  rows={1}
                   data-testid="input-message"
                 />
-                <Button type="button" size="icon" disabled={sendMutation.isPending || (!message.trim() && !imageFile)} onClick={() => { if (message.trim() || imageFile) sendMutation.mutate(); }} data-testid="button-send-message">
+                <Button
+                  type="button"
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10"
+                  disabled={!message.trim() && !imageFile}
+                  onClick={handleSend}
+                  data-testid="button-send-message"
+                >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
