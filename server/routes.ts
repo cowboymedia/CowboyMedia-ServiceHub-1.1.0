@@ -1367,18 +1367,21 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       logActivity("ticket", "ticket_message", { actorId: req.session.userId!, targetId: ticket.id, targetType: "ticket", summary: `Message on ticket "${ticket.subject}" by ${user.fullName} (customer: ${msgCustomer?.fullName || "Unknown"})`, details: JSON.stringify({ sender: user.fullName, customer: msgCustomer?.fullName, subject: ticket.subject }) });
       broadcast({ type: "ticket_message", ticketId: req.params.id, message });
       if (isAdmin) {
+        const customerViewingTicket = isUserViewingTicket(ticket.customerId, ticket.id);
         sendPushToUser(ticket.customerId, {
           title: "New Ticket Reply",
           body: `Reply on: ${ticket.subject}`,
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
-        }, { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
-        storage.createTicketNotification({
-          userId: ticket.customerId,
-          ticketId: ticket.id,
-          type: "ticket_reply",
-          message: `New reply on: ${ticket.subject}`,
-        });
+        }, customerViewingTicket ? undefined : { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
+        if (!customerViewingTicket) {
+          storage.createTicketNotification({
+            userId: ticket.customerId,
+            ticketId: ticket.id,
+            type: "ticket_reply",
+            message: `New reply on: ${ticket.subject}`,
+          });
+        }
         const customer = await storage.getUser(ticket.customerId);
         if (customer?.email && customer.emailNotifications !== false && !isUserViewingTicket(ticket.customerId, ticket.id)) {
           if (shouldSendTicketEmail(ticket.customerId, ticket.id)) {
@@ -2156,12 +2159,13 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
       const recipientUser = await storage.getUser(recipientId);
       const recipientIsCustomer = recipientUser?.role === "customer";
+      const shouldCreateNotif = recipientIsCustomer && !isRecipientViewing;
       sendPushToUser(recipientId, {
         title: `${sender?.fullName || "User"}`,
         body: body.trim().substring(0, 100),
         url: `/messages/${thread.id}`,
         tag: `thread-${thread.id}`,
-      }, recipientIsCustomer ? { type: "message", referenceType: "message_thread", referenceId: thread.id } : undefined);
+      }, shouldCreateNotif ? { type: "message", referenceType: "message_thread", referenceId: thread.id } : undefined);
 
       if (!isRecipientViewing) {
         const recipient = await storage.getUser(recipientId);
