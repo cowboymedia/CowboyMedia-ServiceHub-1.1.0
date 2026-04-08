@@ -161,7 +161,7 @@ export default function ServiceDetail() {
                         <AlertTriangle className="w-5 h-5 text-status-away flex-shrink-0 mt-0.5" />
                         <div className="space-y-1">
                           <h3 className="font-semibold text-sm">{alert.title}</h3>
-                          <p className="text-xs text-muted-foreground line-clamp-1">{alert.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1 whitespace-pre-wrap">{alert.description}</p>
                           <div className="flex items-center gap-2 flex-wrap">
                             <SeverityBadge severity={alert.severity} />
                             <AlertStatusBadge status={alert.status} />
