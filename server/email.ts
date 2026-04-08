@@ -110,19 +110,28 @@ export async function sendEmailToMultiple(recipients: string[], subject: string,
   }
 }
 
-function replaceVariables(template: string, variables: Record<string, string>): string {
+function replaceVariablesPlain(template: string, variables: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (match, key) => {
-    return variables[key] !== undefined ? variables[key] : match;
+    if (variables[key] === undefined) return match;
+    return variables[key].replace(/\n/g, " ");
   });
 }
 
-export async function renderTemplate(templateKey: string, variables: Record<string, string>): Promise<{ subject: string; body: string; enabled: boolean } | null> {
+function replaceVariablesHtml(template: string, variables: Record<string, string>, rawHtmlKeys?: Set<string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    if (variables[key] === undefined) return match;
+    if (rawHtmlKeys && rawHtmlKeys.has(key)) return variables[key];
+    return variables[key].replace(/\n/g, "<br/>");
+  });
+}
+
+export async function renderTemplate(templateKey: string, variables: Record<string, string>, rawHtmlKeys?: Set<string>): Promise<{ subject: string; body: string; enabled: boolean } | null> {
   try {
     const template = await storage.getEmailTemplateByKey(templateKey);
     if (!template) return null;
     return {
-      subject: replaceVariables(template.subject, variables),
-      body: replaceVariables(template.body, variables),
+      subject: replaceVariablesPlain(template.subject, variables),
+      body: replaceVariablesHtml(template.body, variables, rawHtmlKeys),
       enabled: template.enabled !== false,
     };
   } catch {

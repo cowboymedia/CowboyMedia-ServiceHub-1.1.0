@@ -711,7 +711,7 @@ export default function TicketDetail() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Description</span>
-                    <span className="text-sm text-right max-w-[60%]">{customerInfo.ticket.description || "—"}</span>
+                    <span className="text-sm text-right max-w-[60%] whitespace-pre-wrap">{customerInfo.ticket.description || "—"}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-sm text-muted-foreground">Service</span>
@@ -894,7 +894,7 @@ export default function TicketDetail() {
             style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
           >
             <div className="p-3 sm:p-4 border-b bg-card">
-              <p className="text-sm" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} data-testid="text-ticket-description">{ticket.description}</p>
+              <p className="text-sm whitespace-pre-wrap" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }} data-testid="text-ticket-description">{ticket.description}</p>
               {ticket.imageUrl && (
                 <ClickableImage src={ticket.imageUrl} alt="Ticket attachment" className="mt-2 max-w-[100px] max-h-16 object-cover rounded-md cursor-pointer" />
               )}

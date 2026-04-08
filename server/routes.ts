@@ -28,14 +28,15 @@ async function sendTemplatedEmail(
   templateKey: string,
   variables: Record<string, string>,
   recipientName?: string,
+  rawHtmlKeys?: Set<string>,
 ): Promise<void> {
-  const rendered = await renderTemplate(templateKey, variables);
+  const rendered = await renderTemplate(templateKey, variables, rawHtmlKeys);
   if (rendered && !rendered.enabled) return;
   const fallback = !rendered ? getDefaultTemplate(templateKey) : null;
   const tpl = rendered || fallback;
   if (!tpl) return;
-  const subject = rendered ? tpl.subject : replaceVarsSimple(tpl.subject, variables);
-  const body = rendered ? tpl.body : replaceVarsSimple(tpl.body, variables);
+  const subject = rendered ? tpl.subject : replaceVarsPlain(tpl.subject, variables);
+  const body = rendered ? tpl.body : replaceVarsSimple(tpl.body, variables, rawHtmlKeys);
   const sensitiveTemplates = ["password_reset"];
   const isSensitive = sensitiveTemplates.includes(templateKey);
   if (Array.isArray(to)) {
@@ -49,8 +50,16 @@ async function sendTemplatedEmail(
   }
 }
 
-function replaceVarsSimple(template: string, variables: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key) => variables[key] !== undefined ? variables[key] : match);
+function replaceVarsSimple(template: string, variables: Record<string, string>, rawHtmlKeys?: Set<string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    if (variables[key] === undefined) return match;
+    if (rawHtmlKeys && rawHtmlKeys.has(key)) return variables[key];
+    return variables[key].replace(/\n/g, "<br/>");
+  });
+}
+
+function replaceVarsPlain(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => variables[key] !== undefined ? variables[key].replace(/\n/g, " ") : match);
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -926,7 +935,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
               closed_by: closedByLabel,
               resolution_summary: resolutionHtml,
               conversation: conversationHtml,
-            }, admin.fullName);
+            }, admin.fullName, new Set(["resolution_summary", "conversation"]));
           }
         }
 
@@ -940,7 +949,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
               closed_date: closedDate,
               resolution_summary: resolutionHtml,
               conversation: conversationHtml,
-            }, customer.fullName);
+            }, customer.fullName, new Set(["resolution_summary", "conversation"]));
           } catch (transcriptErr) {
             console.error("Transcript email error:", transcriptErr);
           }
@@ -2335,7 +2344,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           report_title: title,
           report_description_block: description ? `<blockquote>${description}</blockquote>` : "",
           customer_name: user.fullName,
-        }, user.fullName);
+        }, user.fullName, new Set(["report_description_block"]));
       }
 
       const allUsers = await storage.getAllUsers();
@@ -2357,7 +2366,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
             service_name: service?.name || "N/A",
             report_title: title,
             report_description_block: description ? `<blockquote>${description}</blockquote>` : "",
-          }, admin.fullName);
+          }, admin.fullName, new Set(["report_description_block"]));
         }
       }
       const adminIds = admins.map(a => a.id);

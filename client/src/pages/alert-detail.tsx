@@ -89,7 +89,7 @@ export default function AlertDetail() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm" data-testid="text-alert-description">{alert.description}</p>
+          <p className="text-sm whitespace-pre-wrap" data-testid="text-alert-description">{alert.description}</p>
           {alert.imageUrl && (
             <ClickableImage src={alert.imageUrl} alt="Alert attachment" className="max-h-48 rounded-md" />
           )}
@@ -134,7 +134,7 @@ export default function AlertDetail() {
                         {format(new Date(update.createdAt), "MMM d, h:mm a")}
                       </span>
                     </div>
-                    <p className="text-sm">{update.message}</p>
+                    <p className="text-sm whitespace-pre-wrap">{update.message}</p>
                     {update.imageUrl && (
                       <ClickableImage src={update.imageUrl} alt="Update attachment" className="max-h-32 rounded-md mt-1" />
                     )}

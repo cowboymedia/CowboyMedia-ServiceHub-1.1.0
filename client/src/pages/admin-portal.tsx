@@ -1306,7 +1306,7 @@ function AlertsTab({ canManage = true }: { canManage?: boolean }) {
                 </div>
                 {expandedAlertCardId === alert.id && (
                   <div className="space-y-2 pt-1 pl-6">
-                    <p className="text-xs text-muted-foreground">{alert.description}</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{alert.description}</p>
                     {alert.imageUrl && <ClickableImage src={alert.imageUrl} alt="Alert image" className="max-h-24 rounded-md" />}
                     <div className="flex items-center gap-1 flex-wrap">
                       {canManage && (
@@ -1374,7 +1374,7 @@ function AlertUpdatesList({ alertId, canManage, onEditUpdate }: { alertId: strin
               <Badge variant="secondary" className="text-xs capitalize">{update.status}</Badge>
               <span className="text-xs text-muted-foreground">{format(new Date(update.createdAt), "MMM d, h:mm a")}</span>
             </div>
-            <p className="text-xs">{update.message}</p>
+            <p className="text-xs whitespace-pre-wrap">{update.message}</p>
             {update.imageUrl && <ClickableImage src={update.imageUrl} alt="Update image" className="max-h-20 rounded-md mt-1" />}
           </div>
           {canManage && (

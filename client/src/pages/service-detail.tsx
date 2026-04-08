@@ -122,7 +122,7 @@ export default function ServiceDetail() {
               <ServiceStatusBadge status={service.status} />
             </div>
             {service.description && (
-              <p className="text-sm text-muted-foreground" data-testid="text-service-description">{service.description}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap" data-testid="text-service-description">{service.description}</p>
             )}
             {service.category && (
               <Badge variant="secondary" className="text-xs" data-testid="text-service-category">{service.category}</Badge>
