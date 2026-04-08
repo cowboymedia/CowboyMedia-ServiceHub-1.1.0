@@ -202,6 +202,7 @@ export interface IStorage {
   createUserNotification(data: InsertUserNotification): Promise<UserNotification>;
   getUserNotifications(userId: string, limit?: number, offset?: number): Promise<UserNotification[]>;
   getUnreadUserNotificationCount(userId: string): Promise<number>;
+  getUserNotification(id: string, userId: string): Promise<UserNotification | undefined>;
   markUserNotificationRead(id: string, userId: string): Promise<void>;
   dismissUserNotification(id: string, userId: string): Promise<void>;
   markAllUserNotificationsRead(userId: string): Promise<void>;
@@ -1005,6 +1006,11 @@ export class DatabaseStorage implements IStorage {
     const result = await db.select({ count: sql<number>`count(*)::int` }).from(userNotifications)
       .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.readAt), isNull(userNotifications.dismissedAt)));
     return result[0]?.count ?? 0;
+  }
+
+  async getUserNotification(id: string, userId: string): Promise<UserNotification | undefined> {
+    const [notif] = await db.select().from(userNotifications).where(and(eq(userNotifications.id, id), eq(userNotifications.userId, userId)));
+    return notif;
   }
 
   async markUserNotificationRead(id: string, userId: string): Promise<void> {

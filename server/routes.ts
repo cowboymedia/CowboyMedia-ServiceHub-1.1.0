@@ -3122,10 +3122,10 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
-      const notifications = await storage.getUserNotifications(req.session.userId!, 100, 0);
-      const notif = notifications.find(n => n.id === req.params.id);
+      const notif = await storage.getUserNotification(req.params.id, req.session.userId!);
+      if (!notif) return res.status(404).json({ message: "Notification not found" });
       await storage.markUserNotificationRead(req.params.id, req.session.userId!);
-      if (notif) await clearRelatedBadge(req.session.userId!, notif);
+      await clearRelatedBadge(req.session.userId!, notif);
       res.json({ message: "Marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -3134,10 +3134,10 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/notifications/:id/dismiss", requireAuth, async (req, res) => {
     try {
-      const notifications = await storage.getUserNotifications(req.session.userId!, 100, 0);
-      const notif = notifications.find(n => n.id === req.params.id);
+      const notif = await storage.getUserNotification(req.params.id, req.session.userId!);
+      if (!notif) return res.status(404).json({ message: "Notification not found" });
       await storage.dismissUserNotification(req.params.id, req.session.userId!);
-      if (notif) await clearRelatedBadge(req.session.userId!, notif);
+      await clearRelatedBadge(req.session.userId!, notif);
       res.json({ message: "Dismissed" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -3155,7 +3155,16 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
     try {
-      await storage.markAllUserNotificationsRead(req.session.userId!);
+      const userId = req.session.userId!;
+      const unreadNotifs = await storage.getUserNotifications(userId, 200, 0);
+      const unread = unreadNotifs.filter(n => !n.readAt);
+      await storage.markAllUserNotificationsRead(userId);
+      for (const notif of unread) {
+        await clearRelatedBadge(userId, notif);
+      }
+      if (unread.some(n => n.type === "ticket_update")) {
+        await storage.markTicketNotificationsRead(userId);
+      }
       res.json({ message: "All marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
