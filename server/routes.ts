@@ -453,7 +453,7 @@ export async function registerRoutes(
           body: `${fullName} (${username}) just created an account`,
           url: "/admin",
           tag: `signup-${user.id}`,
-        });
+        }, { type: "new_signup", referenceType: "user", referenceId: user.id });
       }
       const adminEmails = admins.map(a => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
@@ -715,7 +715,7 @@ export async function registerRoutes(
           body: `${customer?.fullName}: ${ticket.subject}`,
           url: `/tickets/${ticket.id}`,
           tag: `ticket-${ticket.id}`,
-        });
+        }, { type: "new_ticket", referenceType: "ticket", referenceId: ticket.id });
         storage.createTicketNotification({
           userId: admin.id,
           ticketId: ticket.id,
@@ -907,7 +907,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
             body: `Ticket Closed: ${ticket.subject}`,
             url: `/tickets/${ticket.id}`,
             tag: `ticket-${ticket.id}`,
-          });
+          }, { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
           storage.createTicketNotification({
             userId: admin.id,
             ticketId: ticket.id,
@@ -1405,18 +1405,21 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           }
         }
         for (const admin of admins) {
+          const adminViewingTicket = isUserViewingTicket(admin.id, ticket.id);
           sendPushToUser(admin.id, {
             title: "New Ticket Message",
             body: `${user.fullName}: ${ticket.subject}`,
             url: `/tickets/${ticket.id}`,
             tag: `ticket-${ticket.id}`,
-          });
-          storage.createTicketNotification({
-            userId: admin.id,
-            ticketId: ticket.id,
-            type: "ticket_reply",
-            message: `${user.fullName} replied: ${ticket.subject}`,
-          });
+          }, adminViewingTicket ? undefined : { type: "ticket_update", referenceType: "ticket", referenceId: ticket.id });
+          if (!adminViewingTicket) {
+            storage.createTicketNotification({
+              userId: admin.id,
+              ticketId: ticket.id,
+              type: "ticket_reply",
+              message: `${user.fullName} replied: ${ticket.subject}`,
+            });
+          }
           if (admin.email && !isUserViewingTicket(admin.id, ticket.id)) {
             if (shouldSendTicketEmail(admin.id, ticket.id)) {
               recordTicketEmailSent(admin.id, ticket.id);
@@ -2158,8 +2161,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const isRecipientViewing = isUserViewingThread(recipientId, thread.id);
 
       const recipientUser = await storage.getUser(recipientId);
-      const recipientIsCustomer = recipientUser?.role === "customer";
-      const shouldCreateNotif = recipientIsCustomer && !isRecipientViewing;
+      const shouldCreateNotif = !isRecipientViewing;
       sendPushToUser(recipientId, {
         title: `${sender?.fullName || "User"}`,
         body: body.trim().substring(0, 100),
@@ -2337,7 +2339,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           body: `${user.fullName}: ${title}`,
           url: "/admin",
           tag: `report-request-${rr.id}`,
-        });
+        }, { type: "new_report", referenceType: "report_request", referenceId: rr.id });
         if (admin.email) {
           sendTemplatedEmail(admin.email, "admin_new_report", {
             type_label: typeLabel,
@@ -3106,11 +3108,11 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   async function clearRelatedBadge(userId: string, notif: { type: string; referenceType: string | null; referenceId: string | null }) {
     try {
-      if (notif.type === "ticket_update") {
+      if (notif.type === "ticket_update" || notif.type === "new_ticket") {
         await storage.markTicketNotificationsRead(userId);
       } else if (notif.type === "message" && notif.referenceId) {
         await storage.markThreadMessagesRead(notif.referenceId, userId);
-      } else if (notif.type === "report_update") {
+      } else if (notif.type === "report_update" || notif.type === "new_report") {
         await storage.markReportNotificationsRead(userId);
       } else if (notif.type === "alert" || notif.type === "news" || notif.type === "service_update") {
         const categoryMap: Record<string, string> = { alert: "alerts", news: "news", service_update: "service-updates" };
@@ -3453,7 +3455,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         body: reason,
         url: "/admin",
         tag: `monitor-${monitor.id}-down`,
-      });
+      }, { type: "monitor_down", referenceType: "url_monitor", referenceId: monitor.id });
     }
 
     if (monitor.emailNotifications) {
@@ -3498,7 +3500,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         body: `Recovered after ${downtimeDuration}`,
         url: "/admin",
         tag: `monitor-${monitor.id}-up`,
-      });
+      }, { type: "monitor_up", referenceType: "url_monitor", referenceId: monitor.id });
     }
 
     if (monitor.emailNotifications) {

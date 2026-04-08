@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Bell, X, Mail, MessageSquare, AlertTriangle, Newspaper, Activity, FileText, RefreshCw, CheckCheck } from "lucide-react";
+import { Bell, X, Mail, MessageSquare, AlertTriangle, Newspaper, Activity, FileText, RefreshCw, CheckCheck, UserPlus, MonitorX, MonitorCheck } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,11 @@ const typeIcons: Record<string, typeof Bell> = {
   service_status: Activity,
   service_update: RefreshCw,
   report_update: FileText,
+  new_signup: UserPlus,
+  new_ticket: MessageSquare,
+  new_report: FileText,
+  monitor_down: MonitorX,
+  monitor_up: MonitorCheck,
 };
 
 function getIcon(type: string) {
@@ -43,9 +48,9 @@ function getIcon(type: string) {
 
 function invalidateRelatedBadges(type: string) {
   const keys: string[] = ["/api/notifications/unread-count"];
-  if (type === "ticket_update") keys.push("/api/ticket-notifications/unread-count");
+  if (type === "ticket_update" || type === "new_ticket") keys.push("/api/ticket-notifications/unread-count");
   if (type === "message") keys.push("/api/message-threads/unread-count");
-  if (type === "report_update") keys.push("/api/report-notifications/unread-count");
+  if (type === "report_update" || type === "new_report") keys.push("/api/report-notifications/unread-count");
   if (["alert", "news", "service_status", "service_update"].includes(type)) keys.push("/api/content-notifications/counts");
   for (const key of keys) {
     queryClient.invalidateQueries({ queryKey: [key] });
@@ -205,16 +210,12 @@ export function NotificationCenter() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
-  const isCustomer = user?.role === "customer";
-
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     refetchInterval: 15000,
-    enabled: !!user && isCustomer,
+    enabled: !!user,
   });
   const unreadCount = unreadData?.count ?? 0;
-
-  if (!isCustomer) return null;
 
   const handleNavigate = (url: string) => {
     setOpen(false);
