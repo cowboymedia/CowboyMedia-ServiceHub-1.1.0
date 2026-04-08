@@ -1996,6 +1996,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const customer = await storage.getUser(customerId);
       if (!customer) return res.status(404).json({ message: "Customer not found" });
+      if (customer.role !== "customer") return res.status(400).json({ message: "Can only start conversations with customers" });
 
       const thread = await storage.createMessageThread({
         adminId: req.session.userId!,
