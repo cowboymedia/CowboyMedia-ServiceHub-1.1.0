@@ -1099,19 +1099,25 @@ export default function TicketDetail() {
                 >
                   <Paperclip className="w-4 h-4" />
                 </Button>
-                {isAdmin && quickResponses && quickResponses.length > 0 && (
+                {isAdmin && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button type="button" size="icon" variant="ghost" className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10" data-testid="button-quick-responses">
                         <Zap className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto">
-                      {quickResponses.map((qr) => (
-                        <DropdownMenuItem key={qr.id} onClick={() => setMessage(qr.message)} data-testid={`quick-response-${qr.id}`}>
-                          {qr.title}
-                        </DropdownMenuItem>
-                      ))}
+                    <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto w-56">
+                      {quickResponses && quickResponses.length > 0 ? (
+                        quickResponses.map((qr) => (
+                          <DropdownMenuItem key={qr.id} onClick={() => setMessage(qr.message)} data-testid={`quick-response-${qr.id}`}>
+                            {qr.title}
+                          </DropdownMenuItem>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          No quick responses yet. Create them in Admin Portal &rarr; Quick Responses.
+                        </div>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}

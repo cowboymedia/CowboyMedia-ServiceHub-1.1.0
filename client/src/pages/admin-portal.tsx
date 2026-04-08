@@ -3336,10 +3336,10 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
                     <Circle className={`w-4 h-4 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate" data-testid={`text-monitor-name-${m.id}`}>{m.name}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
-                      {!m.enabled && <Badge variant="secondary" className="text-xs">Paused</Badge>}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium truncate max-w-[50vw] sm:max-w-none" data-testid={`text-monitor-name-${m.id}`}>{m.name}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
+                      {!m.enabled && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">Paused</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{m.url}</p>
                   </div>
@@ -3513,20 +3513,22 @@ function MonitorDetailView({ monitor, onBack }: { monitor: UrlMonitor; onBack: (
 
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Circle className={`w-5 h-5 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
+          <div className="space-y-2">
+            <div className="flex items-start gap-3">
+              <Circle className={`w-5 h-5 flex-shrink-0 mt-1 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
+                  <Badge className={`flex-shrink-0 ${!m.enabled ? "bg-muted text-muted-foreground border-muted" : m.status === "up" ? "bg-green-500/10 text-green-600 border-green-500/20" : m.status === "down" ? "bg-red-500/10 text-red-600 border-red-500/20" : ""}`} variant="outline">
+                    {getStatusLabel(m.status, m.enabled)}
+                  </Badge>
+                </div>
+                <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:underline inline-flex items-center gap-1 break-all" data-testid="link-monitor-url">
+                  {m.url} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                </a>
               </div>
-              <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:underline flex items-center gap-1" data-testid="link-monitor-url">
-                {m.url} <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
-            <Badge className={`ml-auto ${!m.enabled ? "bg-muted text-muted-foreground border-muted" : m.status === "up" ? "bg-green-500/10 text-green-600 border-green-500/20" : m.status === "down" ? "bg-red-500/10 text-red-600 border-red-500/20" : ""}`} variant="outline">
-              {getStatusLabel(m.status, m.enabled)}
-            </Badge>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
