@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS url_monitors (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   url TEXT NOT NULL,
+  monitor_type TEXT NOT NULL DEFAULT 'url_availability',
   check_interval_seconds INTEGER NOT NULL DEFAULT 60,
   expected_status_code INTEGER NOT NULL DEFAULT 200,
   timeout_seconds INTEGER NOT NULL DEFAULT 10,
@@ -15,6 +16,8 @@ CREATE TABLE IF NOT EXISTS url_monitors (
   consecutive_failures INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE url_monitors ADD COLUMN IF NOT EXISTS monitor_type TEXT NOT NULL DEFAULT 'url_availability';
 
 CREATE TABLE IF NOT EXISTS monitor_incidents (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),

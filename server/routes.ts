@@ -2908,9 +2908,12 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
   const ALLOWED_TIMEOUTS = [5, 10, 30];
   const ALLOWED_THRESHOLDS = [1, 2, 3, 4, 5];
 
+  const ALLOWED_MONITOR_TYPES = ["http_status", "url_availability"];
+
   const monitorUpdateSchema = z.object({
     name: z.string().min(1).optional(),
     url: z.string().url().optional(),
+    monitorType: z.enum(["http_status", "url_availability"]).optional(),
     checkIntervalSeconds: z.number().int().refine(v => ALLOWED_INTERVALS.includes(v), { message: "Must be 30, 60, 120, 300, or 600" }).optional(),
     expectedStatusCode: z.number().int().min(100).max(599).optional(),
     timeoutSeconds: z.number().int().refine(v => ALLOWED_TIMEOUTS.includes(v), { message: "Must be 5, 10, or 30" }).optional(),
@@ -3076,20 +3079,37 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), monitor.timeoutSeconds * 1000);
       const start = Date.now();
-      const response = await fetch(monitor.url, {
-        method: "HEAD",
-        signal: controller.signal,
-        redirect: "manual",
-      });
-      responseTimeMs = Date.now() - start;
-      clearTimeout(timeout);
 
-      if (response.status === monitor.expectedStatusCode) {
-        isUp = true;
-      } else if (response.status >= 300 && response.status < 400) {
-        failureReason = `HTTP ${response.status} redirect (expected ${monitor.expectedStatusCode}). Use the final URL instead.`;
+      if (monitor.monitorType === "http_status") {
+        const response = await fetch(monitor.url, {
+          method: "HEAD",
+          signal: controller.signal,
+          redirect: "manual",
+        });
+        responseTimeMs = Date.now() - start;
+        clearTimeout(timeout);
+
+        if (response.status === monitor.expectedStatusCode) {
+          isUp = true;
+        } else if (response.status >= 300 && response.status < 400) {
+          failureReason = `HTTP ${response.status} redirect (expected ${monitor.expectedStatusCode}). Use the final URL instead.`;
+        } else {
+          failureReason = `HTTP ${response.status} (expected ${monitor.expectedStatusCode})`;
+        }
       } else {
-        failureReason = `HTTP ${response.status} (expected ${monitor.expectedStatusCode})`;
+        const response = await fetch(monitor.url, {
+          method: "GET",
+          signal: controller.signal,
+          redirect: "follow",
+        });
+        responseTimeMs = Date.now() - start;
+        clearTimeout(timeout);
+
+        if (response.status < 500) {
+          isUp = true;
+        } else {
+          failureReason = `HTTP ${response.status} server error`;
+        }
       }
     } catch (err: any) {
       if (err.name === "AbortError") {

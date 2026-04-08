@@ -3195,6 +3195,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [monitorType, setMonitorType] = useState("url_availability");
   const [checkInterval, setCheckInterval] = useState("60");
   const [expectedStatus, setExpectedStatus] = useState("200");
   const [timeout, setTimeout_] = useState("10");
@@ -3204,6 +3205,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
   const resetForm = () => {
     setName("");
     setUrl("");
+    setMonitorType("url_availability");
     setCheckInterval("60");
     setExpectedStatus("200");
     setTimeout_("10");
@@ -3216,6 +3218,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
     setEditing(m);
     setName(m.name);
     setUrl(m.url);
+    setMonitorType(m.monitorType || "url_availability");
     setCheckInterval(String(m.checkIntervalSeconds));
     setExpectedStatus(String(m.expectedStatusCode));
     setTimeout_(String(m.timeoutSeconds));
@@ -3229,6 +3232,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
       const body = {
         name,
         url,
+        monitorType,
         checkIntervalSeconds: parseInt(checkInterval),
         expectedStatusCode: parseInt(expectedStatus),
         timeoutSeconds: parseInt(timeout),
@@ -3334,6 +3338,7 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate" data-testid={`text-monitor-name-${m.id}`}>{m.name}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
                       {!m.enabled && <Badge variant="secondary" className="text-xs">Paused</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{m.url}</p>
@@ -3390,7 +3395,22 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
               <Label>URL</Label>
               <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://example.com" data-testid="input-monitor-url" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Monitor Type</Label>
+              <Select value={monitorType} onValueChange={setMonitorType}>
+                <SelectTrigger data-testid="select-monitor-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="url_availability">URL Becomes Unavailable</SelectItem>
+                  <SelectItem value="http_status">HTTP Status Check</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {monitorType === "url_availability"
+                  ? "Checks if the URL is reachable. Marks as down only on connection failure, timeout, or server errors (5xx)."
+                  : "Sends a HEAD request and checks for a specific HTTP status code."}
+              </p>
+            </div>
+            <div className={`grid gap-3 ${monitorType === "http_status" ? "grid-cols-2" : ""}`}>
               <div>
                 <Label>Check Interval</Label>
                 <Select value={checkInterval} onValueChange={setCheckInterval}>
@@ -3404,10 +3424,12 @@ function MonitoringTab({ canManage }: { canManage: boolean }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Expected Status</Label>
-                <Input type="number" value={expectedStatus} onChange={e => setExpectedStatus(e.target.value)} data-testid="input-monitor-status-code" />
-              </div>
+              {monitorType === "http_status" && (
+                <div>
+                  <Label>Expected Status</Label>
+                  <Input type="number" value={expectedStatus} onChange={e => setExpectedStatus(e.target.value)} data-testid="input-monitor-status-code" />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -3494,7 +3516,10 @@ function MonitorDetailView({ monitor, onBack }: { monitor: UrlMonitor; onBack: (
           <div className="flex items-center gap-3">
             <Circle className={`w-5 h-5 ${getStatusColor(m.status, m.enabled)} ${m.enabled && m.status === "up" ? "animate-status-glow fill-current" : m.enabled && m.status === "down" ? "animate-status-down fill-current" : ""}`} />
             <div>
-              <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold" data-testid="text-monitor-detail-name">{m.name}</h3>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{m.monitorType === "http_status" ? "HTTP Status" : "Availability"}</Badge>
+              </div>
               <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:underline flex items-center gap-1" data-testid="link-monitor-url">
                 {m.url} <ExternalLink className="w-3 h-3" />
               </a>

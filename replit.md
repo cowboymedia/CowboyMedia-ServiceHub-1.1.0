@@ -59,13 +59,15 @@ The frontend utilizes React with Vite, styled using TailwindCSS and Shadcn UI fo
 - Relevant files: `shared/schema.ts`, `server/storage.ts`, `server/routes.ts`, `client/src/pages/downloads-page.tsx`, `client/src/pages/admin-portal.tsx` (DownloadsTab), `client/src/components/bottom-nav.tsx`, `client/src/components/app-sidebar.tsx`
 
 ### URL Monitoring
-- `url_monitors` table: id, name, url, checkIntervalSeconds, expectedStatusCode, timeoutSeconds, consecutiveFailuresThreshold, emailNotifications, enabled, status (unknown/up/down), lastCheckedAt, lastStatusChange, lastResponseTimeMs, consecutiveFailures, createdAt
+- `url_monitors` table: id, name, url, monitorType, checkIntervalSeconds, expectedStatusCode, timeoutSeconds, consecutiveFailuresThreshold, emailNotifications, enabled, status (unknown/up/down), lastCheckedAt, lastStatusChange, lastResponseTimeMs, consecutiveFailures, createdAt
 - `monitor_incidents` table: id, monitorId, startedAt, resolvedAt, durationSeconds, failureReason, notifiedDown, notifiedUp
-- Background monitoring loop runs every 15s, checks each monitor per its own interval via HTTP HEAD requests
-- Uses AbortController for timeout; tracks consecutive failures before marking "down" (default threshold: 3)
-- Push + email notifications to all admins on status transitions (down/up) using `monitor_down` and `monitor_up` email templates
+- **Monitor Types**: `url_availability` (default) — GET request, follows redirects, any non-5xx = up; `http_status` — HEAD request, no redirects, checks specific status code
+- Background monitoring loop runs every 15s, checks each monitor per its own interval
+- Uses AbortController for timeout; tracks consecutive failures before marking "down" (threshold 1-5)
+- Push always sent + email gated per monitor on status transitions (down/up) using `monitor_down` and `monitor_up` email templates
 - Admin portal tile "URL Monitoring" gated by `monitoring.view` / `monitoring.manage` permissions
-- Full CRUD in admin UI: create/edit/delete monitors, pause/resume, view detail with incident history
+- Full CRUD in admin UI: create/edit/delete monitors, pause/resume, view detail with incident history, live refresh (15s)
+- DOWN state uses red pulse animation (`animate-status-down`), UP uses green glow, paused shows gray
 - Migration file: `migrations/003_url_monitors.sql`
 - API routes: GET/POST `/api/admin/monitors`, GET/PATCH/DELETE `/api/admin/monitors/:id`, GET `/api/admin/monitors/:id/incidents`
 

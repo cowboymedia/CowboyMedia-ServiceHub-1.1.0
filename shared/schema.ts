@@ -373,6 +373,7 @@ export const urlMonitors = pgTable("url_monitors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   url: text("url").notNull(),
+  monitorType: text("monitor_type").notNull().default("url_availability"),
   checkIntervalSeconds: integer("check_interval_seconds").notNull().default(60),
   expectedStatusCode: integer("expected_status_code").notNull().default(200),
   timeoutSeconds: integer("timeout_seconds").notNull().default(10),
