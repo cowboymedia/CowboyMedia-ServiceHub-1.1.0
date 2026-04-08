@@ -206,6 +206,7 @@ export interface IStorage {
   markUserNotificationRead(id: string, userId: string): Promise<void>;
   dismissUserNotification(id: string, userId: string): Promise<void>;
   markAllUserNotificationsRead(userId: string): Promise<void>;
+  dismissAllUserNotifications(userId: string): Promise<void>;
   markUserNotificationsByTypeRead(userId: string, types: string[]): Promise<void>;
   deleteExpiredUserNotifications(daysOld: number): Promise<number>;
 }
@@ -1019,12 +1020,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async dismissUserNotification(id: string, userId: string): Promise<void> {
-    await db.update(userNotifications).set({ dismissedAt: new Date() }).where(and(eq(userNotifications.id, id), eq(userNotifications.userId, userId)));
+    await db.update(userNotifications).set({ dismissedAt: new Date(), readAt: sql`COALESCE(${userNotifications.readAt}, NOW())` }).where(and(eq(userNotifications.id, id), eq(userNotifications.userId, userId)));
   }
 
   async markAllUserNotificationsRead(userId: string): Promise<void> {
     await db.update(userNotifications).set({ readAt: new Date() })
       .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.readAt), isNull(userNotifications.dismissedAt)));
+  }
+
+  async dismissAllUserNotifications(userId: string): Promise<void> {
+    await db.update(userNotifications).set({ dismissedAt: new Date(), readAt: sql`COALESCE(${userNotifications.readAt}, NOW())` })
+      .where(and(eq(userNotifications.userId, userId), isNull(userNotifications.dismissedAt)));
   }
 
   async markUserNotificationsByTypeRead(userId: string, types: string[]): Promise<void> {

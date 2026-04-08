@@ -3175,7 +3175,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
   app.post("/api/notifications/mark-all-read", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId!;
-      await storage.markAllUserNotificationsRead(userId);
+      await storage.dismissAllUserNotifications(userId);
       await storage.markTicketNotificationsRead(userId);
       await storage.markReportNotificationsRead(userId);
       await storage.markContentNotificationsRead(userId, "alerts");

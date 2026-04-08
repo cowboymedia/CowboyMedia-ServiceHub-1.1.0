@@ -99,10 +99,8 @@ function NotificationList({ onNavigate }: { onNavigate: (url: string) => void })
 
   const handleTap = (notif: UserNotification) => {
     hapticLight();
-    if (!notif.readAt) {
-      markReadMutation.mutate(notif.id);
-      invalidateRelatedBadges(notif.type);
-    }
+    dismissMutation.mutate(notif.id);
+    invalidateRelatedBadges(notif.type);
     if (notif.url) {
       onNavigate(notif.url);
     }
@@ -142,7 +140,7 @@ function NotificationList({ onNavigate }: { onNavigate: (url: string) => void })
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-4 py-2.5 border-b">
         <h3 className="text-sm font-semibold" data-testid="text-notifications-title">Notifications</h3>
-        {unreadCount > 0 && (
+        {notifications.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
@@ -152,7 +150,7 @@ function NotificationList({ onNavigate }: { onNavigate: (url: string) => void })
             data-testid="button-mark-all-read"
           >
             <CheckCheck className="w-3.5 h-3.5" />
-            Mark all read
+            Clear all
           </Button>
         )}
       </div>
