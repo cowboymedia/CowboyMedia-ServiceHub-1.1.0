@@ -80,6 +80,7 @@ export const ticketMessages = pgTable("ticket_messages", {
   senderId: varchar("sender_id").notNull(),
   message: text("message").notNull(),
   imageUrl: text("image_url"),
+  readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

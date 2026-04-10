@@ -227,6 +227,9 @@ export default function TicketDetail() {
             setTypingUser(null);
             markTicketRead();
           }
+          if (data.type === "ticket_messages_read" && data.ticketId === params.id && data.readBy !== userIdRef.current) {
+            queryClient.invalidateQueries({ queryKey: ["/api/tickets", params.id, "messages"] });
+          }
           if (data.type === "typing" && data.ticketId === params.id && data.userId !== userIdRef.current) {
             setTypingUser(data.userName);
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1016,6 +1019,7 @@ export default function TicketDetail() {
                             {!isOptimistic && (
                               <p className="text-[10px] sm:text-xs text-muted-foreground">
                                 {format(new Date(msg.createdAt), "h:mm a")}
+                                {isAdmin && isMe && msg.readAt && <span className="ml-1.5">· Read</span>}
                               </p>
                             )}
                           </div>

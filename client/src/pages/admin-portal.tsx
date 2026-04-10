@@ -1659,6 +1659,9 @@ function AdminThreadChat({ threadId, onBack, userId }: { threadId: string; onBac
             setTypingUser(null);
             markRead.mutate();
           }
+          if (d.type === "thread_messages_read" && d.threadId === threadId && d.readBy !== userId) {
+            queryClient.invalidateQueries({ queryKey: ["/api/message-threads", threadId, "messages"] });
+          }
           if (d.type === "thread_typing" && d.threadId === threadId && d.userId !== userId) {
             setTypingUser(d.userName);
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1772,7 +1775,10 @@ function AdminThreadChat({ threadId, onBack, userId }: { threadId: string; onBac
                 <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 py-2 ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                   {!isMe && <p className="text-[10px] font-medium mb-0.5 opacity-70">{msg.senderName}</p>}
                   <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
-                  <p className={`text-[10px] mt-0.5 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{format(msgDate, "h:mm a")}</p>
+                  <p className={`text-[10px] mt-0.5 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                    {format(msgDate, "h:mm a")}
+                    {isMe && msg.readAt && <span className="ml-1.5">· Read</span>}
+                  </p>
                 </div>
               </div>
             </div>

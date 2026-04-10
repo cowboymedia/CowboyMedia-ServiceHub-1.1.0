@@ -1234,6 +1234,27 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
     }
     const messages = await storage.getTicketMessages(req.params.id);
+    const isCustomer = user.role === "customer";
+    if (isCustomer) {
+      const hasUnread = messages.some(m => m.senderId !== user.id && !m.readAt);
+      if (hasUnread) {
+        await storage.markTicketMessagesRead(req.params.id, user.id);
+        const updatedMessages = await storage.getTicketMessages(req.params.id);
+        const senderIds = [...new Set(updatedMessages.map(m => m.senderId))];
+        const senderMap = new Map<string, { name: string; role: string }>();
+        await Promise.all(senderIds.map(async (id) => {
+          const sender = await storage.getUser(id);
+          if (sender) senderMap.set(id, { name: sender.fullName, role: sender.role });
+        }));
+        const enriched = updatedMessages.map(m => ({
+          ...m,
+          senderName: senderMap.get(m.senderId)?.name || "Unknown",
+          senderRole: senderMap.get(m.senderId)?.role || "customer",
+        }));
+        broadcast({ type: "ticket_messages_read", ticketId: req.params.id, readBy: user.id });
+        return res.json(enriched);
+      }
+    }
     const senderIds = [...new Set(messages.map(m => m.senderId))];
     const senderMap = new Map<string, { name: string; role: string }>();
     await Promise.all(senderIds.map(async (id) => {
@@ -2214,6 +2235,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           isNull(userNotifications.readAt),
           isNull(userNotifications.dismissedAt)
         ));
+      broadcastToThreadParticipants({ type: "thread_messages_read", threadId: req.params.id, readBy: req.session.userId! }, [thread.adminId, thread.customerId]);
       res.json({ message: "Marked as read" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });

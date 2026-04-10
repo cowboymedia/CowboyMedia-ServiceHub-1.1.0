@@ -75,6 +75,7 @@ export interface IStorage {
 
   getTicketMessages(ticketId: string): Promise<TicketMessage[]>;
   createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage>;
+  markTicketMessagesRead(ticketId: string, readerId: string): Promise<void>;
 
   createPrivateMessage(message: InsertPrivateMessage): Promise<PrivateMessage>;
   getPrivateMessagesByUser(userId: string): Promise<PrivateMessage[]>;
@@ -355,6 +356,16 @@ export class DatabaseStorage implements IStorage {
 
   async getTicketMessages(ticketId: string): Promise<TicketMessage[]> {
     return db.select().from(ticketMessages).where(eq(ticketMessages.ticketId, ticketId)).orderBy(ticketMessages.createdAt);
+  }
+
+  async markTicketMessagesRead(ticketId: string, readerId: string): Promise<void> {
+    await db.update(ticketMessages).set({ readAt: new Date() }).where(
+      and(
+        eq(ticketMessages.ticketId, ticketId),
+        isNull(ticketMessages.readAt),
+        sql`${ticketMessages.senderId} != ${readerId}`
+      )
+    );
   }
 
   async createTicketMessage(message: InsertTicketMessage): Promise<TicketMessage> {
