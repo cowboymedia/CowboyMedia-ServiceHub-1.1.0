@@ -9,6 +9,7 @@ import { Activity, AlertTriangle, Bell, CheckCircle, Clock, Newspaper, Ticket } 
 import type { Service, ServiceAlert, NewsStory, Ticket as TicketType, ServiceUpdate } from "@shared/schema";
 import { format } from "date-fns";
 import { LazyImage } from "@/components/lazy-image";
+import { stripHtml } from "@/components/rich-text-editor";
 
 function StatusIndicator({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -245,7 +246,7 @@ export default function Dashboard() {
                     )}
                     <div className="space-y-0.5 min-w-0">
                       <p className="text-sm font-medium truncate">{story.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-1">{story.content}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{stripHtml(story.content)}</p>
                       <p className="text-xs text-muted-foreground">{format(new Date(story.createdAt), "MMM d, yyyy")}</p>
                     </div>
                   </div>

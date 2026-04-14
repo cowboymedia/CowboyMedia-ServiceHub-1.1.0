@@ -29,7 +29,7 @@ The frontend uses React with Vite, TailwindCSS, and Shadcn UI for a modern aesth
 - **Service Monitoring**: Comprehensive service status tracking with automated alerts and consolidated notifications. Includes URL monitoring with various check types, incident tracking, and admin management.
 - **Support Ticketing**: Category-based system with real-time messaging, ticket transfer, typing indicators, and email/push notifications. Includes optimistic message sending and smart auto-scroll.
 - **Admin Communications**: Real-time admin chat with threads, file attachments, and broadcast priority alerts.
-- **Customer Engagement**: News stories with photo support and a customer message center for two-way threaded communication with admins.
+- **Customer Engagement**: News stories with rich text editing (TipTap) supporting bold, italic, underline, text color, alignment, and inline images; customer message center for two-way threaded communication with admins.
 - **Unified Notification Center**: In-app notification system with a bell icon, unread badges, and distinct notification types for various events.
 - **User Onboarding**: Setup reminders for push notifications and service configuration.
 - **Password Reset**: Self-service forgot password flow via email.

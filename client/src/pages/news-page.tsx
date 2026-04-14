@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Newspaper, ChevronRight } from "lucide-react";
 import { LazyImage } from "@/components/lazy-image";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { stripHtml } from "@/components/rich-text-editor";
 import type { NewsStory } from "@shared/schema";
 
 export default function NewsPage() {
@@ -78,7 +79,7 @@ export default function NewsPage() {
                   )}
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <h3 className="font-semibold text-sm">{story.title}</h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{story.content}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{stripHtml(story.content)}</p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(story.createdAt), "MMMM d, yyyy")}
                     </p>

@@ -16,6 +16,23 @@ import { promisify } from "util";
 import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple, renderTemplate, getDefaultTemplate } from "./email";
 import { format } from "date-fns";
+import sanitizeHtml from "sanitize-html";
+
+const sanitizeNewsContent = (html: string): string =>
+  sanitizeHtml(html, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "u", "span"]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      "*": ["style", "class"],
+      img: ["src", "alt", "width", "height"],
+    },
+    allowedStyles: {
+      "*": {
+        "text-align": [/^left$/, /^center$/, /^right$/, /^justify$/],
+        color: [/^#[0-9a-fA-F]{3,6}$/, /^rgb\(/, /^rgba\(/],
+      },
+    },
+  });
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -1898,7 +1915,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       const imageUrl = req.file ? await saveUploadedFile(req.file) : undefined;
       const story = await storage.createNewsStory({
         title: req.body.title,
-        content: req.body.content,
+        content: sanitizeNewsContent(req.body.content),
         imageUrl: imageUrl || null,
         authorId: req.session.userId!,
       });
@@ -1918,7 +1935,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         sendTemplatedEmail(customerEmails, "customer_news", {
           story_title: story.title,
           story_content: story.content,
-        }, "Customers");
+        }, "Customers", new Set(["story_content"]));
       }
       const customerIds = allUsers.filter(u => u.role === "customer").map(u => u.id);
       storage.createContentNotificationBulk(customerIds, "news", story.title, story.id).catch(() => {});
@@ -1935,7 +1952,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
       const updateData: any = {};
       if (req.body.title) updateData.title = req.body.title;
-      if (req.body.content) updateData.content = req.body.content;
+      if (req.body.content) updateData.content = sanitizeNewsContent(req.body.content);
       if (req.file) {
         updateData.imageUrl = await saveUploadedFile(req.file);
       } else if (req.body.removeImage === "true") {
@@ -1956,6 +1973,16 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       await storage.deleteNewsStory(req.params.id);
       logActivity("news", "news_deleted", { actorId: req.session.userId!, targetId: req.params.id, targetType: "news", summary: `News story deleted: ${storyToDelete?.title || req.params.id}` });
       res.json({ message: "News story deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/upload-inline-image", requirePermission("news.view", "news.manage"), upload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No image provided" });
+      const url = await saveUploadedFile(req.file);
+      res.json({ url });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

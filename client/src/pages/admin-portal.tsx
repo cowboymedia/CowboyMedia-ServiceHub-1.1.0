@@ -28,6 +28,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { Download, ImagePlus, X as XIcon } from "lucide-react";
 import type { User, Service, ServiceAlert, AlertUpdate, NewsStory, QuickResponse, ReportRequest, ServiceUpdate, EmailTemplate, AdminRole, TicketCategory, Download as DownloadItem, UrlMonitor, MonitorIncident } from "@shared/schema";
+import { RichTextEditor, stripHtml } from "@/components/rich-text-editor";
 
 const createServiceSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -1490,7 +1491,7 @@ function NewsTab({ canManage = true }: { canManage?: boolean }) {
           {canManage && <DialogTrigger asChild>
             <Button size="sm" data-testid="button-create-news"><Plus className="w-4 h-4 mr-1" /> Publish Story</Button>
           </DialogTrigger>}
-          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Publish News Story</DialogTitle></DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((d) => createMutation.mutate(d))} className="space-y-3">
@@ -1498,10 +1499,16 @@ function NewsTab({ canManage = true }: { canManage?: boolean }) {
                   <FormItem><FormLabel>Title</FormLabel><FormControl><Input data-testid="input-news-title" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="content" render={({ field }) => (
-                  <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea className="min-h-[120px]" data-testid="input-news-content" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem>
+                    <FormLabel>Content</FormLabel>
+                    <FormControl>
+                      <RichTextEditor value={field.value} onChange={field.onChange} testIdPrefix="create-news" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )} />
                 <div>
-                  <label className="text-sm font-medium">Image (optional)</label>
+                  <label className="text-sm font-medium">Cover Image (optional)</label>
                   <Input type="file" accept="image/*" className="mt-1" onChange={(e) => setImageFile(e.target.files?.[0] || null)} data-testid="input-news-image" />
                 </div>
                 <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-submit-news">
@@ -1524,7 +1531,7 @@ function NewsTab({ canManage = true }: { canManage?: boolean }) {
                   )}
                   <div className="space-y-0.5">
                     <h4 className="font-semibold text-sm">{story.title}</h4>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{story.content}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{stripHtml(story.content)}</p>
                   </div>
                 </div>
                 {canManage && <div className="flex gap-1 flex-shrink-0">
@@ -1542,7 +1549,7 @@ function NewsTab({ canManage = true }: { canManage?: boolean }) {
       )}
 
       <Dialog open={editDialogOpen} onOpenChange={(open) => { if (!open) { setEditDialogOpen(false); setEditingStory(null); } }}>
-        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit News Story</DialogTitle></DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit((d) => editMutation.mutate(d))} className="space-y-3">
@@ -1550,7 +1557,13 @@ function NewsTab({ canManage = true }: { canManage?: boolean }) {
                 <FormItem><FormLabel>Title</FormLabel><FormControl><Input data-testid="input-edit-news-title" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={editForm.control} name="content" render={({ field }) => (
-                <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea className="min-h-[120px]" data-testid="input-edit-news-content" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Content</FormLabel>
+                  <FormControl>
+                    <RichTextEditor value={field.value} onChange={field.onChange} testIdPrefix="edit-news" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <div className="space-y-2">
                 <label className="text-sm font-medium">Image</label>

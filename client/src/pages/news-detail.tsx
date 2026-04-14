@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { ClickableImage } from "@/components/image-lightbox";
+import { isHtmlContent } from "@/components/rich-text-editor";
 import type { NewsStory } from "@shared/schema";
 
 export default function NewsDetail() {
@@ -35,6 +36,8 @@ export default function NewsDetail() {
     );
   }
 
+  const isRich = isHtmlContent(story.content);
+
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <Link href="/news">
@@ -61,9 +64,17 @@ export default function NewsDetail() {
 
       <Card>
         <CardContent className="p-6">
-          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap" data-testid="text-story-content">
-            {story.content}
-          </div>
+          {isRich ? (
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none prose-img:rounded-md prose-img:max-w-full"
+              data-testid="text-story-content"
+              dangerouslySetInnerHTML={{ __html: story.content }}
+            />
+          ) : (
+            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap" data-testid="text-story-content">
+              {story.content}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
