@@ -1932,10 +1932,12 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const customerEmails = allUsers.filter(u => u.role === "customer" && u.email && u.emailNotifications !== false).map(u => u.email);
       if (customerEmails.length > 0) {
+        const plainContent = sanitizeHtml(story.content, { allowedTags: [], allowedAttributes: {} }).trim();
+        const emailPreview = plainContent.length > 500 ? plainContent.substring(0, 500) + "..." : plainContent;
         sendTemplatedEmail(customerEmails, "customer_news", {
           story_title: story.title,
-          story_content: story.content,
-        }, "Customers", new Set(["story_content"]));
+          story_content: emailPreview,
+        }, "Customers");
       }
       const customerIds = allUsers.filter(u => u.role === "customer").map(u => u.id);
       storage.createContentNotificationBulk(customerIds, "news", story.title, story.id).catch(() => {});
@@ -1952,7 +1954,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
       const updateData: any = {};
       if (req.body.title) updateData.title = req.body.title;
-      if (req.body.content) updateData.content = sanitizeNewsContent(req.body.content);
+      if (req.body.content !== undefined) updateData.content = sanitizeNewsContent(req.body.content);
       if (req.file) {
         updateData.imageUrl = await saveUploadedFile(req.file);
       } else if (req.body.removeImage === "true") {
