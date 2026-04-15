@@ -432,7 +432,7 @@ export default function CommunityChatPage() {
                       <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{formatDateSeparator(msgDate)}</span>
                     </div>
                   )}
-                  <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-1 group`}>
+                  <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-1`}>
                     <div className="relative max-w-[85%] sm:max-w-[70%]">
                       <div className={`rounded-2xl px-3 py-2 ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                         {!isMe && (
@@ -442,34 +442,34 @@ export default function CommunityChatPage() {
                           </p>
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words" data-testid={`text-community-msg-${msg.id}`}>{msg.content}</p>
-                        <p className={`text-[10px] mt-0.5 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                          {format(msgDate, "h:mm a")}
-                        </p>
-                      </div>
-                      <ReactionBadges reactions={msg.reactions} userId={user?.id || ""} onToggle={(emoji) => handleReaction(msg.id, emoji)} />
-                      <div className={`absolute ${isMe ? "left-0 -translate-x-full" : "right-0 translate-x-full"} top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1`}>
-                        <div className="relative">
-                          <button
-                            onClick={() => setActiveEmojiPicker(activeEmojiPicker === msg.id ? null : msg.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted/80 text-muted-foreground"
-                            data-testid={`button-react-${msg.id}`}
-                          >
-                            <Smile className="w-3.5 h-3.5" />
-                          </button>
-                          {activeEmojiPicker === msg.id && (
-                            <EmojiPicker onSelect={(emoji) => handleReaction(msg.id, emoji)} onClose={() => setActiveEmojiPicker(null)} />
+                        <div className={`flex items-center gap-1.5 mt-0.5 ${isMe ? "justify-end" : "justify-start"}`}>
+                          <p className={`text-[10px] ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                            {format(msgDate, "h:mm a")}
+                          </p>
+                          <div className="relative">
+                            <button
+                              onClick={() => setActiveEmojiPicker(activeEmojiPicker === msg.id ? null : msg.id)}
+                              className={`w-5 h-5 flex items-center justify-center rounded-full transition-colors ${isMe ? "text-primary-foreground/50 hover:text-primary-foreground/80" : "text-muted-foreground/50 hover:text-muted-foreground"}`}
+                              data-testid={`button-react-${msg.id}`}
+                            >
+                              <Smile className="w-3 h-3" />
+                            </button>
+                            {activeEmojiPicker === msg.id && (
+                              <EmojiPicker onSelect={(emoji) => handleReaction(msg.id, emoji)} onClose={() => setActiveEmojiPicker(null)} />
+                            )}
+                          </div>
+                          {isAdminUser && !isMe && (
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="w-5 h-5 flex items-center justify-center rounded-full text-muted-foreground/50 hover:text-destructive transition-colors"
+                              data-testid={`button-delete-msg-${msg.id}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           )}
                         </div>
-                        {isAdminUser && !isMe && (
-                          <button
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
-                            data-testid={`button-delete-msg-${msg.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                       </div>
+                      <ReactionBadges reactions={msg.reactions} userId={user?.id || ""} onToggle={(emoji) => handleReaction(msg.id, emoji)} />
                     </div>
                   </div>
                 </div>
