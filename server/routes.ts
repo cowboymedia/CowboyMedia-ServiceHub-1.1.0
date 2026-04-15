@@ -3336,6 +3336,9 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           const info = wsThreadMap.get(ws);
           if (info && info.threadId === data.threadId) wsThreadMap.delete(ws);
         }
+        if (data.type === "community_typing" && sessionUserId && data.chatUsername) {
+          broadcastExcept({ type: "community_typing", userId: sessionUserId, chatUsername: data.chatUsername }, ws);
+        }
         if (data.type === "viewing_ticket" && data.ticketId && data.userId) {
           const prev = wsUserMap.get(ws);
           if (prev) {
@@ -3525,6 +3528,136 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
   app.get("/api/admin/monitors/:id/incidents", requirePermission("monitoring.view", "monitoring.manage"), async (req, res) => {
     const incidents = await storage.getMonitorIncidents(req.params.id);
     res.json(incidents);
+  });
+
+  app.get("/api/community-chat/messages", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const before = req.query.before as string | undefined;
+      const messages = await storage.getCommunityMessages(limit, before);
+      const messageIds = messages.map(m => m.id);
+      const reactions = await storage.getCommunityReactions(messageIds);
+      const reactionsByMessage: Record<string, { emoji: string; userIds: string[] }[]> = {};
+      for (const r of reactions) {
+        if (!reactionsByMessage[r.messageId]) reactionsByMessage[r.messageId] = [];
+        const group = reactionsByMessage[r.messageId].find(g => g.emoji === r.emoji);
+        if (group) group.userIds.push(r.userId);
+        else reactionsByMessage[r.messageId].push({ emoji: r.emoji, userIds: [r.userId] });
+      }
+      const userIds = [...new Set(messages.map(m => m.userId))];
+      const usersMap = new Map<string, { role: string }>();
+      for (const uid of userIds) {
+        const u = await storage.getUser(uid);
+        if (u) usersMap.set(uid, { role: u.role });
+      }
+      const enriched = messages.map(m => ({
+        ...m,
+        reactions: reactionsByMessage[m.id] || [],
+        isAdmin: ["admin", "master_admin"].includes(usersMap.get(m.userId)?.role || ""),
+      }));
+      enriched.reverse();
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/community-chat/messages", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+      const { content } = req.body;
+      if (!content || typeof content !== "string" || !content.trim()) {
+        return res.status(400).json({ error: "Content is required" });
+      }
+      if (content.length > 2000) {
+        return res.status(400).json({ error: "Message too long (max 2000 characters)" });
+      }
+      const isAdminUser = user.role === "admin" || user.role === "master_admin";
+      const chatUsername = isAdminUser ? user.fullName : (user.chatUsername || "Anonymous");
+      const msg = await storage.createCommunityMessage({
+        userId: user.id,
+        chatUsername,
+        content: content.trim(),
+      });
+      broadcast({
+        type: "community_message",
+        message: { ...msg, reactions: [], isAdmin: isAdminUser },
+      });
+      res.json({ ...msg, reactions: [], isAdmin: isAdminUser });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/community-chat/messages/:id", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+      const isAdminUser = user.role === "admin" || user.role === "master_admin";
+      if (!isAdminUser) return res.status(403).json({ error: "Only admins can delete messages" });
+      await storage.deleteCommunityMessage(req.params.id);
+      broadcast({ type: "community_message_deleted", messageId: req.params.id });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/community-chat/messages/:id/reactions", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "User not found" });
+      const { emoji } = req.body;
+      if (!emoji || typeof emoji !== "string") {
+        return res.status(400).json({ error: "Emoji is required" });
+      }
+      const allowedEmojis = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👎"];
+      if (!allowedEmojis.includes(emoji)) {
+        return res.status(400).json({ error: "Invalid emoji" });
+      }
+      const result = await storage.toggleCommunityReaction(req.params.id, user.id, emoji);
+      broadcast({
+        type: "community_reaction",
+        messageId: req.params.id,
+        userId: user.id,
+        emoji,
+        added: result.added,
+      });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/community-chat/username-available", requireAuth, async (req, res) => {
+    try {
+      const username = req.query.username as string;
+      if (!username) return res.status(400).json({ error: "Username required" });
+      const taken = await storage.isChatUsernameTaken(username, req.session.userId);
+      res.json({ available: !taken });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/community-chat/username", requireAuth, async (req, res) => {
+    try {
+      const { chatUsername } = req.body;
+      if (!chatUsername || typeof chatUsername !== "string" || chatUsername.trim().length < 2 || chatUsername.trim().length > 20) {
+        return res.status(400).json({ error: "Username must be 2-20 characters" });
+      }
+      const cleaned = chatUsername.trim();
+      if (!/^[a-zA-Z0-9_\-]+$/.test(cleaned)) {
+        return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, and hyphens" });
+      }
+      const taken = await storage.isChatUsernameTaken(cleaned, req.session.userId);
+      if (taken) return res.status(409).json({ error: "Username already taken" });
+      const updated = await storage.updateUser(req.session.userId!, { chatUsername: cleaned });
+      res.json({ chatUsername: updated?.chatUsername });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   async function notifyAdminsMonitorDown(monitor: { id: string; name: string; url: string; emailNotifications: boolean }, reason: string) {

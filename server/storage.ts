@@ -30,7 +30,9 @@ import {
   type MessageThread, type InsertMessageThread,
   type ThreadMessage, type InsertThreadMessage,
   type UserNotification, type InsertUserNotification,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications,
+  type CommunityMessage, type InsertCommunityMessage,
+  type CommunityReaction, type InsertCommunityReaction,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications, communityMessages, communityReactions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -210,6 +212,13 @@ export interface IStorage {
   dismissAllUserNotifications(userId: string): Promise<void>;
   markUserNotificationsByTypeRead(userId: string, types: string[]): Promise<void>;
   deleteExpiredUserNotifications(daysOld: number): Promise<number>;
+
+  getCommunityMessages(limit?: number, before?: string): Promise<CommunityMessage[]>;
+  createCommunityMessage(data: InsertCommunityMessage): Promise<CommunityMessage>;
+  deleteCommunityMessage(id: string): Promise<void>;
+  getCommunityReactions(messageIds: string[]): Promise<CommunityReaction[]>;
+  toggleCommunityReaction(messageId: string, userId: string, emoji: string): Promise<{ added: boolean }>;
+  isChatUsernameTaken(chatUsername: string, excludeUserId?: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1059,6 +1068,62 @@ export class DatabaseStorage implements IStorage {
     const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
     const result = await db.delete(userNotifications).where(sql`${userNotifications.createdAt} < ${cutoff}`);
     return result.rowCount ?? 0;
+  }
+
+  async getCommunityMessages(limit: number = 50, before?: string): Promise<CommunityMessage[]> {
+    if (before) {
+      const [refMsg] = await db.select().from(communityMessages).where(eq(communityMessages.id, before));
+      if (refMsg) {
+        return db.select().from(communityMessages)
+          .where(sql`${communityMessages.createdAt} < ${refMsg.createdAt}`)
+          .orderBy(desc(communityMessages.createdAt))
+          .limit(limit);
+      }
+    }
+    return db.select().from(communityMessages)
+      .orderBy(desc(communityMessages.createdAt))
+      .limit(limit);
+  }
+
+  async createCommunityMessage(data: InsertCommunityMessage): Promise<CommunityMessage> {
+    const [msg] = await db.insert(communityMessages).values(data).returning();
+    return msg;
+  }
+
+  async deleteCommunityMessage(id: string): Promise<void> {
+    await db.delete(communityReactions).where(eq(communityReactions.messageId, id));
+    await db.delete(communityMessages).where(eq(communityMessages.id, id));
+  }
+
+  async getCommunityReactions(messageIds: string[]): Promise<CommunityReaction[]> {
+    if (messageIds.length === 0) return [];
+    return db.select().from(communityReactions)
+      .where(inArray(communityReactions.messageId, messageIds));
+  }
+
+  async toggleCommunityReaction(messageId: string, userId: string, emoji: string): Promise<{ added: boolean }> {
+    const [existing] = await db.select().from(communityReactions)
+      .where(and(
+        eq(communityReactions.messageId, messageId),
+        eq(communityReactions.userId, userId),
+        eq(communityReactions.emoji, emoji)
+      ));
+    if (existing) {
+      await db.delete(communityReactions).where(eq(communityReactions.id, existing.id));
+      return { added: false };
+    }
+    await db.insert(communityReactions).values({ messageId, userId, emoji });
+    return { added: true };
+  }
+
+  async isChatUsernameTaken(chatUsername: string, excludeUserId?: string): Promise<boolean> {
+    const lower = chatUsername.toLowerCase();
+    const rows = await db.select({ id: users.id }).from(users)
+      .where(sql`LOWER(${users.chatUsername}) = ${lower}`);
+    if (excludeUserId) {
+      return rows.some(r => r.id !== excludeUserId);
+    }
+    return rows.length > 0;
   }
 }
 

@@ -81,6 +81,36 @@ app.use((req, res, next) => {
   }
 
   try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS chat_username TEXT`);
+  } catch (e) {
+    console.error("Migration error (users.chat_username):", e);
+  }
+
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS community_messages (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id VARCHAR NOT NULL,
+      chat_username TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )`);
+  } catch (e) {
+    console.error("Migration error (community_messages):", e);
+  }
+
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS community_reactions (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      message_id VARCHAR NOT NULL,
+      user_id VARCHAR NOT NULL,
+      emoji TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )`);
+  } catch (e) {
+    console.error("Migration error (community_reactions):", e);
+  }
+
+  try {
     await seed();
   } catch (e) {
     console.error("Seed error:", e);

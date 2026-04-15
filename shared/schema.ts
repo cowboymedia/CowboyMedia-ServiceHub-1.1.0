@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   setupReminderDismissed: boolean("setup_reminder_dismissed").default(false).notNull(),
   setupReminderEmailSent: boolean("setup_reminder_email_sent").default(false).notNull(),
+  chatUsername: text("chat_username"),
 });
 
 export const services = pgTable("services", {
@@ -452,6 +453,31 @@ export const userNotifications = pgTable("user_notifications", {
 export const insertUserNotificationSchema = createInsertSchema(userNotifications).omit({ id: true, readAt: true, dismissedAt: true, createdAt: true });
 export type InsertUserNotification = z.infer<typeof insertUserNotificationSchema>;
 export type UserNotification = typeof userNotifications.$inferSelect;
+
+// Community chat
+export const communityMessages = pgTable("community_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  chatUsername: text("chat_username").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityReactions = pgTable("community_reactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  emoji: text("emoji").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCommunityMessageSchema = createInsertSchema(communityMessages).omit({ id: true, createdAt: true });
+export type InsertCommunityMessage = z.infer<typeof insertCommunityMessageSchema>;
+export type CommunityMessage = typeof communityMessages.$inferSelect;
+
+export const insertCommunityReactionSchema = createInsertSchema(communityReactions).omit({ id: true, createdAt: true });
+export type InsertCommunityReaction = z.infer<typeof insertCommunityReactionSchema>;
+export type CommunityReaction = typeof communityReactions.$inferSelect;
 
 // Login schema
 export const loginSchema = z.object({

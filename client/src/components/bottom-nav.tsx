@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, MessageSquare, AlertTriangle, Newspaper, Menu, RefreshCw, Mail, FileText, Settings, Shield, LogOut, Download } from "lucide-react";
+import { Activity, MessageSquare, AlertTriangle, Newspaper, Menu, RefreshCw, Mail, FileText, Settings, Shield, LogOut, Download, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import { hapticLight } from "@/lib/haptics";
@@ -66,7 +66,7 @@ export function BottomNav() {
     { label: "More", icon: Menu, path: null, badge: overflowBadgeCount },
   ];
 
-  const overflowRoutes = ["/service-updates", "/messages", "/report-request", "/downloads", "/settings", "/admin"];
+  const overflowRoutes = ["/service-updates", "/messages", "/community", "/report-request", "/downloads", "/settings", "/admin"];
 
   const isActive = (path: string | null) => {
     if (path === null) return overflowRoutes.some((r) => location === r || location.startsWith(r + "/"));
@@ -77,6 +77,7 @@ export function BottomNav() {
   const overflowItems = [
     { title: "Service Updates", url: "/service-updates", icon: RefreshCw, badge: contentCounts["service-updates"] ?? 0 },
     { title: "Messages", url: "/messages", icon: Mail, badge: unreadMessageCount },
+    { title: "Community Chat", url: "/community", icon: Users, badge: 0 },
     { title: "Report/Request", url: "/report-request", icon: FileText, badge: unreadReportCount },
     { title: "Downloads", url: "/downloads", icon: Download, badge: 0 },
     { title: "Settings", url: "/settings", icon: Settings, badge: 0 },

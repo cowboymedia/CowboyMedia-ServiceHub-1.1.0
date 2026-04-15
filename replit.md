@@ -36,6 +36,7 @@ The frontend uses React with Vite, TailwindCSS, and Shadcn UI for a modern aesth
 - **Admin Activity Logs**: Comprehensive logging of major system events with permission-based viewing.
 - **Downloads**: Admin-managed downloadable content for customers.
 - **Email Template Protection**: Prevents overwriting of customized email templates during updates.
+- **Community Chat**: Single-room community chat with anonymous usernames for customers (admins use real names with badge). Telegram-style emoji reactions (👍❤️😂😮😢🔥🎉👎). Real-time via WebSocket. Route: `/community`.
 
 ## External Dependencies
 - **Database**: PostgreSQL

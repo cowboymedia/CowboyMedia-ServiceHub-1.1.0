@@ -47,6 +47,7 @@ import ServiceDetail from "@/pages/service-detail";
 import DownloadsPage from "@/pages/downloads-page";
 import ForgotPasswordPage from "@/pages/forgot-password-page";
 import ResetPasswordPage from "@/pages/reset-password-page";
+import CommunityChatPage from "@/pages/community-chat-page";
 
 function getRouteDepth(path: string): number {
   if (path === "/") return 0;
@@ -99,6 +100,7 @@ function AppRouter() {
         <Route path="/service-updates" component={ServiceUpdatesPage} />
         <Route path="/report-request" component={ReportRequestPage} />
         <Route path="/downloads" component={DownloadsPage} />
+        <Route path="/community" component={CommunityChatPage} />
         <Route path="/admin" component={AdminPortal} />
         <Route component={NotFound} />
       </Switch>
@@ -111,7 +113,8 @@ function AuthenticatedLayout() {
   const isMobile = useIsMobile();
   const isTicketDetail = /^\/tickets\/[^/?]+/.test(location);
   const isMessageChat = /^\/messages\/[^/?]+/.test(location);
-  const isFullHeightChat = isTicketDetail || isMessageChat;
+  const isCommunityChat = /^\/community(\/|$)/.test(location);
+  const isFullHeightChat = isTicketDetail || isMessageChat || isCommunityChat;
   const isNewsPage = /^\/news(\/|$)/.test(location);
   const isAdminPortal = /^\/admin/.test(location);
   const scrollRef = useRef<HTMLDivElement>(null);
