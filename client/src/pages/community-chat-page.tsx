@@ -547,12 +547,10 @@ export default function CommunityChatPage() {
                   <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-1`}>
                     <div className="relative max-w-[85%] sm:max-w-[70%] min-w-0">
                       <div className={`rounded-2xl px-3 py-2 ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                        {!isMe && (
-                          <p className={`text-[10px] font-medium mb-0.5 flex items-center gap-1 ${msgIsAdmin ? "text-primary" : "opacity-70"}`}>
-                            <span className="truncate">{msg.chatUsername}</span>
-                            {msgIsAdmin && <Shield className="w-2.5 h-2.5 flex-shrink-0" />}
-                          </p>
-                        )}
+                        <p className={`text-[10px] font-medium mb-0.5 flex items-center gap-1 ${isMe ? "text-primary-foreground/70" : msgIsAdmin ? "text-primary" : "opacity-70"}`}>
+                          <span className="truncate">{msg.chatUsername}</span>
+                          {msgIsAdmin && <Shield className="w-2.5 h-2.5 flex-shrink-0" />}
+                        </p>
                         <p className="text-sm whitespace-pre-wrap break-words overflow-hidden" data-testid={`text-community-msg-${msg.id}`}>{msg.content}</p>
                         <div className={`flex items-center gap-1.5 mt-0.5 ${isMe ? "justify-end" : "justify-start"}`}>
                           <p className={`text-[10px] flex-shrink-0 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
