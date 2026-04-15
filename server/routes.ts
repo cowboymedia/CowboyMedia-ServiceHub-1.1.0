@@ -3580,16 +3580,79 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const isAdminUser = user.role === "admin" || user.role === "master_admin";
       const chatUsername = isAdminUser ? user.fullName : (user.chatUsername || "Anonymous");
+      const trimmedContent = content.trim();
+
+      const hasEveryone = /@everyone\b/i.test(trimmedContent);
+      if (hasEveryone && !isAdminUser) {
+        return res.status(403).json({ error: "Only admins can use @everyone" });
+      }
+
       const msg = await storage.createCommunityMessage({
         userId: user.id,
         chatUsername,
-        content: content.trim(),
+        content: trimmedContent,
       });
       broadcast({
         type: "community_message",
         message: { ...msg, reactions: [], isAdmin: isAdminUser },
       });
       res.json({ ...msg, reactions: [], isAdmin: isAdminUser });
+
+      (async () => {
+        try {
+          const allUsers = await storage.getAllUsers();
+          const mentionRegex = /@([a-zA-Z0-9_\-]+)/g;
+          const mentionedNames = new Set<string>();
+          let match;
+          while ((match = mentionRegex.exec(trimmedContent)) !== null) {
+            if (match[1].toLowerCase() !== "everyone") {
+              mentionedNames.add(match[1].toLowerCase());
+            }
+          }
+
+          const pushPayload = {
+            title: `💬 ${chatUsername} in Community Chat`,
+            body: trimmedContent.length > 100 ? trimmedContent.slice(0, 100) + "…" : trimmedContent,
+            url: "/community",
+            tag: "community-chat",
+          };
+
+          const notifMeta: NotifMeta = {
+            type: "community_chat",
+            referenceType: "community_message",
+            referenceId: msg.id,
+          };
+
+          if (hasEveryone) {
+            for (const u of allUsers) {
+              if (u.id === user.id) continue;
+              sendPushToUser(u.id, {
+                ...pushPayload,
+                title: `📢 ${chatUsername} — @everyone`,
+              }, notifMeta);
+            }
+          } else {
+            for (const u of allUsers) {
+              if (u.id === user.id) continue;
+
+              const uChatName = (u.role === "admin" || u.role === "master_admin")
+                ? u.fullName : (u.chatUsername || "");
+              const isMentioned = uChatName && mentionedNames.has(uChatName.toLowerCase());
+
+              if (u.chatNotifications === "all") {
+                sendPushToUser(u.id, pushPayload, notifMeta);
+              } else if (u.chatNotifications === "mentions" && isMentioned) {
+                sendPushToUser(u.id, {
+                  ...pushPayload,
+                  title: `💬 ${chatUsername} mentioned you`,
+                }, notifMeta);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Community chat push notification error:", e);
+        }
+      })();
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -3648,18 +3711,31 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/community-chat/username", requireAuth, async (req, res) => {
     try {
-      const { chatUsername } = req.body;
-      if (!chatUsername || typeof chatUsername !== "string" || chatUsername.trim().length < 2 || chatUsername.trim().length > 20) {
-        return res.status(400).json({ error: "Username must be 2-20 characters" });
+      const { chatUsername, chatNotifications } = req.body;
+      const updateData: Record<string, any> = {};
+      if (chatUsername !== undefined) {
+        if (!chatUsername || typeof chatUsername !== "string" || chatUsername.trim().length < 2 || chatUsername.trim().length > 20) {
+          return res.status(400).json({ error: "Username must be 2-20 characters" });
+        }
+        const cleaned = chatUsername.trim();
+        if (!/^[a-zA-Z0-9_\-]+$/.test(cleaned)) {
+          return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, and hyphens" });
+        }
+        const taken = await storage.isChatUsernameTaken(cleaned, req.session.userId);
+        if (taken) return res.status(409).json({ error: "Username already taken" });
+        updateData.chatUsername = cleaned;
       }
-      const cleaned = chatUsername.trim();
-      if (!/^[a-zA-Z0-9_\-]+$/.test(cleaned)) {
-        return res.status(400).json({ error: "Username can only contain letters, numbers, underscores, and hyphens" });
+      if (chatNotifications !== undefined) {
+        if (!["all", "mentions", "none"].includes(chatNotifications)) {
+          return res.status(400).json({ error: "Invalid notification preference" });
+        }
+        updateData.chatNotifications = chatNotifications;
       }
-      const taken = await storage.isChatUsernameTaken(cleaned, req.session.userId);
-      if (taken) return res.status(409).json({ error: "Username already taken" });
-      const updated = await storage.updateUser(req.session.userId!, { chatUsername: cleaned });
-      res.json({ chatUsername: updated?.chatUsername });
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No fields to update" });
+      }
+      const updated = await storage.updateUser(req.session.userId!, updateData);
+      res.json({ chatUsername: updated?.chatUsername, chatNotifications: updated?.chatNotifications });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

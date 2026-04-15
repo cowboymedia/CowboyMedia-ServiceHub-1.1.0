@@ -6,11 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Shield, ChevronDown, Smile, Trash2, Users } from "lucide-react";
+import { Send, Shield, ChevronDown, Smile, Trash2, Users, Settings, Bell, BellOff, AtSign } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import type { CommunityMessage } from "@shared/schema";
 
@@ -48,8 +50,9 @@ function formatDateSeparator(date: Date): string {
   return format(date, "MMMM d, yyyy");
 }
 
-function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: (username: string) => void }) {
+function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: (username: string, notifPref: string) => void }) {
   const [username, setUsername] = useState("");
+  const [notifPref, setNotifPref] = useState("mentions");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -91,7 +94,7 @@ function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: 
       const res = await fetch("/api/community-chat/username", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatUsername: cleaned }),
+        body: JSON.stringify({ chatUsername: cleaned, chatNotifications: notifPref }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -99,7 +102,7 @@ function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: 
         setError(data.error || "Failed to save");
         return;
       }
-      onComplete(cleaned);
+      onComplete(cleaned, notifPref);
     } catch {
       setError("Failed to save username");
     } finally {
@@ -111,14 +114,12 @@ function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: 
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle data-testid="text-username-dialog-title">Choose a Chat Username</DialogTitle>
+          <DialogTitle data-testid="text-username-dialog-title">Set Up Community Chat</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Pick an anonymous username for the community chat. This is how others will see you.
-          </p>
+        <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="chat-username">Username</Label>
+            <Label htmlFor="chat-username">Anonymous Username</Label>
+            <p className="text-xs text-muted-foreground">This is how others will see you in the chat.</p>
             <Input
               id="chat-username"
               value={username}
@@ -132,8 +133,45 @@ function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: 
             />
             {error && <p className="text-xs text-destructive" data-testid="text-username-error">{error}</p>}
             {checking && <p className="text-xs text-muted-foreground">Checking availability...</p>}
+            <p className="text-[11px] text-muted-foreground">2-20 characters. Letters, numbers, underscores, hyphens only.</p>
           </div>
-          <p className="text-xs text-muted-foreground">2-20 characters. Letters, numbers, underscores, hyphens only.</p>
+
+          <div className="space-y-2">
+            <Label>Push Notifications</Label>
+            <p className="text-xs text-muted-foreground">Choose when to receive push notifications for chat messages. Admins can always reach everyone with @everyone.</p>
+            <RadioGroup value={notifPref} onValueChange={setNotifPref} className="space-y-1.5">
+              <label className="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors" data-testid="radio-notif-all">
+                <RadioGroupItem value="all" className="mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-sm font-medium">All messages</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Get notified for every new chat message</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors" data-testid="radio-notif-mentions">
+                <RadioGroupItem value="mentions" className="mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <AtSign className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-sm font-medium">Mentions only</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Only when someone tags you with @username</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors" data-testid="radio-notif-none">
+                <RadioGroupItem value="none" className="mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <BellOff className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">None</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">No notifications (except admin @everyone)</p>
+                </div>
+              </label>
+            </RadioGroup>
+          </div>
         </div>
         <DialogFooter>
           <Button onClick={handleSubmit} disabled={saving || checking || !!error || username.trim().length < 2} data-testid="button-save-username">
@@ -142,6 +180,76 @@ function UsernameSetupDialog({ open, onComplete }: { open: boolean; onComplete: 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function NotificationSettingsPopover({ currentPref, onUpdate }: { currentPref: string; onUpdate: (pref: string) => void }) {
+  const [pref, setPref] = useState(currentPref);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => { setPref(currentPref); }, [currentPref]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/community-chat/username", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatNotifications: pref }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      onUpdate(pref);
+      setOpen(false);
+      toast({ title: "Notification preference updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const prefIcon = pref === "all" ? <Bell className="w-3.5 h-3.5" /> : pref === "mentions" ? <AtSign className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground" data-testid="button-chat-settings">
+          <Settings className="w-4 h-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-3" data-testid="popover-chat-settings">
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium">Chat Notifications</p>
+            <p className="text-[11px] text-muted-foreground">Admin @everyone always reaches you.</p>
+          </div>
+          <RadioGroup value={pref} onValueChange={setPref} className="space-y-1">
+            <label className="flex items-center gap-2.5 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="settings-radio-all">
+              <RadioGroupItem value="all" />
+              <Bell className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <span className="text-sm">All messages</span>
+            </label>
+            <label className="flex items-center gap-2.5 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="settings-radio-mentions">
+              <RadioGroupItem value="mentions" />
+              <AtSign className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <span className="text-sm">Mentions only</span>
+            </label>
+            <label className="flex items-center gap-2.5 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="settings-radio-none">
+              <RadioGroupItem value="none" />
+              <BellOff className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm">None</span>
+            </label>
+          </RadioGroup>
+          <Button size="sm" className="w-full" onClick={handleSave} disabled={saving || pref === currentPref} data-testid="button-save-notif-pref">
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -200,6 +308,7 @@ export default function CommunityChatPage() {
   const [message, setMessage] = useState("");
   const [showUsernameDialog, setShowUsernameDialog] = useState(false);
   const [chatUsername, setChatUsername] = useState<string | null>(null);
+  const [chatNotifPref, setChatNotifPref] = useState("mentions");
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
   const [activeEmojiPicker, setActiveEmojiPicker] = useState<string | null>(null);
@@ -222,6 +331,7 @@ export default function CommunityChatPage() {
     } else {
       setShowUsernameDialog(true);
     }
+    setChatNotifPref(user.chatNotifications || "mentions");
   }, [user]);
 
   const { data: messages, isLoading } = useQuery<EnrichedMessage[]>({
@@ -380,8 +490,9 @@ export default function CommunityChatPage() {
     }
   }, [toast]);
 
-  const handleUsernameComplete = useCallback((newUsername: string) => {
+  const handleUsernameComplete = useCallback((newUsername: string, notifPref: string) => {
     setChatUsername(newUsername);
+    setChatNotifPref(notifPref);
     setShowUsernameDialog(false);
     queryClient.invalidateQueries({ queryKey: ["/api/user"] });
   }, []);
@@ -401,6 +512,7 @@ export default function CommunityChatPage() {
             {isAdminUser && <Shield className="w-3 h-3 inline ml-1 text-primary" />}
           </p>
         </div>
+        <NotificationSettingsPopover currentPref={chatNotifPref} onUpdate={setChatNotifPref} />
       </div>
 
       <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1 min-h-0">

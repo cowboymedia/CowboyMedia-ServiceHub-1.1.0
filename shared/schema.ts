@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   setupReminderDismissed: boolean("setup_reminder_dismissed").default(false).notNull(),
   setupReminderEmailSent: boolean("setup_reminder_email_sent").default(false).notNull(),
   chatUsername: text("chat_username"),
+  chatNotifications: text("chat_notifications").default("mentions"),
 });
 
 export const services = pgTable("services", {
