@@ -3595,8 +3595,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         for (const filter of wordFilters) {
           const pattern = new RegExp(filter.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
           trimmedContent = trimmedContent.replace(pattern, (match) => {
-            if (match.length <= 2) return match[0] + "*".repeat(match.length - 1);
-            if (match.length === 3) return match[0] + "*" + match[match.length - 1];
+            if (match.length <= 3) return match[0] + "*".repeat(match.length - 1);
             return match[0] + "*".repeat(match.length - 2) + match[match.length - 1];
           });
         }
