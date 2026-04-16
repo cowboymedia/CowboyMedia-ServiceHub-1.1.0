@@ -861,9 +861,13 @@ export default function CommunityChatPage() {
       ) : (
         <div className="border-t p-2 sm:p-3 flex-shrink-0 ios-input-fix">
           {typingNames.length > 0 && (
-            <div className="flex items-center gap-1.5 mb-1.5 px-1">
-              <span className="text-xs text-muted-foreground">
-                {typingNames.length === 1 ? typingNames[0] : `${typingNames.length} people`}
+            <div className="flex items-center gap-1.5 mb-1.5 px-1" data-testid="text-typing-indicator">
+              <span className="text-xs text-muted-foreground italic">
+                {typingNames.length === 1
+                  ? `${typingNames[0]} is typing`
+                  : typingNames.length === 2
+                  ? `${typingNames[0]} and ${typingNames[1]} are typing`
+                  : `${typingNames.length} people are typing`}
               </span>
               <BouncingDots />
             </div>
