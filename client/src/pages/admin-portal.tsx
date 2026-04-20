@@ -4976,9 +4976,12 @@ function TelegramTab() {
   const { toast } = useToast();
   const [chatId, setChatId] = useState("");
   const [enabled, setEnabled] = useState(false);
+  const [sendAlerts, setSendAlerts] = useState(true);
+  const [sendServiceUpdates, setSendServiceUpdates] = useState(true);
+  const [sendNews, setSendNews] = useState(true);
   const [testing, setTesting] = useState(false);
 
-  const { data: settings, isLoading } = useQuery<{ chatId: string; enabled: boolean; hasToken: boolean }>({
+  const { data: settings, isLoading } = useQuery<{ chatId: string; enabled: boolean; sendAlerts: boolean; sendServiceUpdates: boolean; sendNews: boolean; hasToken: boolean }>({
     queryKey: ["/api/admin/telegram-settings"],
   });
 
@@ -4986,11 +4989,14 @@ function TelegramTab() {
     if (settings) {
       setChatId(settings.chatId || "");
       setEnabled(!!settings.enabled);
+      setSendAlerts(settings.sendAlerts !== false);
+      setSendServiceUpdates(settings.sendServiceUpdates !== false);
+      setSendNews(settings.sendNews !== false);
     }
   }, [settings]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: { chatId: string; enabled: boolean }) => {
+    mutationFn: async (data: { chatId: string; enabled: boolean; sendAlerts: boolean; sendServiceUpdates: boolean; sendNews: boolean }) => {
       const res = await apiRequest("PATCH", "/api/admin/telegram-settings", data);
       if (!res.ok) throw new Error("Failed to save settings");
       return res.json();
@@ -5073,9 +5079,46 @@ function TelegramTab() {
             />
           </div>
 
+          <div className="rounded-md border p-3 space-y-3">
+            <p className="text-sm font-medium">Send these event types</p>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="telegram-send-alerts"
+                checked={sendAlerts}
+                onCheckedChange={(v) => setSendAlerts(!!v)}
+                data-testid="checkbox-telegram-send-alerts"
+              />
+              <Label htmlFor="telegram-send-alerts" className="text-sm font-normal cursor-pointer">
+                Service alerts (created, updated, resolved)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="telegram-send-service-updates"
+                checked={sendServiceUpdates}
+                onCheckedChange={(v) => setSendServiceUpdates(!!v)}
+                data-testid="checkbox-telegram-send-service-updates"
+              />
+              <Label htmlFor="telegram-send-service-updates" className="text-sm font-normal cursor-pointer">
+                Service updates
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="telegram-send-news"
+                checked={sendNews}
+                onCheckedChange={(v) => setSendNews(!!v)}
+                data-testid="checkbox-telegram-send-news"
+              />
+              <Label htmlFor="telegram-send-news" className="text-sm font-normal cursor-pointer">
+                News stories
+              </Label>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button
-              onClick={() => saveMutation.mutate({ chatId: chatId.trim(), enabled })}
+              onClick={() => saveMutation.mutate({ chatId: chatId.trim(), enabled, sendAlerts, sendServiceUpdates, sendNews })}
               disabled={saveMutation.isPending}
               data-testid="button-save-telegram"
             >

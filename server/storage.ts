@@ -228,7 +228,7 @@ export interface IStorage {
   getBannedUsers(): Promise<User[]>;
 
   getTelegramSettings(): Promise<TelegramSettings | undefined>;
-  updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean }): Promise<TelegramSettings>;
+  updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean; sendAlerts?: boolean; sendServiceUpdates?: boolean; sendNews?: boolean }): Promise<TelegramSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1158,10 +1158,13 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean }): Promise<TelegramSettings> {
+  async updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean; sendAlerts?: boolean; sendServiceUpdates?: boolean; sendNews?: boolean }): Promise<TelegramSettings> {
     const patch: Record<string, any> = { updatedAt: new Date() };
     if (data.chatId !== undefined) patch.chatId = data.chatId;
     if (data.enabled !== undefined) patch.enabled = data.enabled;
+    if (data.sendAlerts !== undefined) patch.sendAlerts = data.sendAlerts;
+    if (data.sendServiceUpdates !== undefined) patch.sendServiceUpdates = data.sendServiceUpdates;
+    if (data.sendNews !== undefined) patch.sendNews = data.sendNews;
     const [updated] = await db.update(telegramSettings).set(patch).where(eq(telegramSettings.id, "singleton")).returning();
     if (updated) return updated;
     const [created] = await db.insert(telegramSettings).values({ id: "singleton", ...patch }).returning();

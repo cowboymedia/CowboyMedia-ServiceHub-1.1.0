@@ -497,6 +497,9 @@ export const telegramSettings = pgTable("telegram_settings", {
   id: varchar("id").primaryKey().default("singleton"),
   chatId: text("chat_id"),
   enabled: boolean("enabled").notNull().default(false),
+  sendAlerts: boolean("send_alerts").notNull().default(true),
+  sendServiceUpdates: boolean("send_service_updates").notNull().default(true),
+  sendNews: boolean("send_news").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

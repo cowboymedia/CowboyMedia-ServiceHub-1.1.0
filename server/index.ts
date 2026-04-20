@@ -140,6 +140,9 @@ app.use((req, res, next) => {
       updated_at TIMESTAMP DEFAULT NOW() NOT NULL
     )`);
     await db.execute(sql`INSERT INTO telegram_settings (id, enabled) VALUES ('singleton', FALSE) ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS send_alerts BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS send_service_updates BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS send_news BOOLEAN NOT NULL DEFAULT TRUE`);
   } catch (e) {
     console.error("Migration error (telegram_settings):", e);
   }

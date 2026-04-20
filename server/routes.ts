@@ -1659,7 +1659,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         severity: alert.severity,
         title: alert.title,
         description: alert.description,
-      }));
+      }), "alert");
       res.json(alert);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1758,7 +1758,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           status: updateData.status,
           message: updateData.message,
           impact: hasImpactChange ? serviceImpact : null,
-        }));
+        }), "alert");
       }
       res.json(update);
     } catch (e: any) {
@@ -1823,7 +1823,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
         serviceName,
         title: updated.title,
         resolveMessage,
-      }));
+      }), "alert");
       res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1889,7 +1889,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const subIds = subscribedCustomers.map(u => u.id);
       storage.createContentNotificationBulk(subIds, "service-updates", title, update.id).catch(() => {});
-      fireTelegram(composeServiceUpdate({ serviceName, title, description }));
+      fireTelegram(composeServiceUpdate({ serviceName, title, description }), "service_update");
       res.json(update);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1962,7 +1962,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const customerIds = allUsers.filter(u => u.role === "customer").map(u => u.id);
       storage.createContentNotificationBulk(customerIds, "news", story.title, story.id).catch(() => {});
-      fireTelegram(composeNews({ title: story.title, content: story.content || "" }));
+      fireTelegram(composeNews({ title: story.title, content: story.content || "" }), "news");
       res.json(story);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -3988,6 +3988,9 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       res.json({
         chatId: settings?.chatId ?? "",
         enabled: !!settings?.enabled,
+        sendAlerts: settings?.sendAlerts ?? true,
+        sendServiceUpdates: settings?.sendServiceUpdates ?? true,
+        sendNews: settings?.sendNews ?? true,
         hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
       });
     } catch (e: any) {
@@ -3997,16 +4000,26 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.patch("/api/admin/telegram-settings", requireAdmin, async (req, res) => {
     try {
-      const { chatId, enabled } = req.body ?? {};
-      const patch: { chatId?: string | null; enabled?: boolean } = {};
+      const { chatId, enabled, sendAlerts, sendServiceUpdates, sendNews } = req.body ?? {};
+      const patch: { chatId?: string | null; enabled?: boolean; sendAlerts?: boolean; sendServiceUpdates?: boolean; sendNews?: boolean } = {};
       if (chatId !== undefined) patch.chatId = typeof chatId === "string" ? chatId.trim() || null : null;
       if (enabled !== undefined) patch.enabled = !!enabled;
+      if (sendAlerts !== undefined) patch.sendAlerts = !!sendAlerts;
+      if (sendServiceUpdates !== undefined) patch.sendServiceUpdates = !!sendServiceUpdates;
+      if (sendNews !== undefined) patch.sendNews = !!sendNews;
       const updated = await storage.updateTelegramSettings(patch);
       logActivity("system", "telegram_settings_updated", {
         actorId: req.session.userId!,
         summary: `Telegram notifications ${updated.enabled ? "enabled" : "disabled"}${updated.chatId ? ` (chat ${updated.chatId})` : ""}`,
       });
-      res.json({ chatId: updated.chatId ?? "", enabled: !!updated.enabled, hasToken: !!process.env.TELEGRAM_BOT_TOKEN });
+      res.json({
+        chatId: updated.chatId ?? "",
+        enabled: !!updated.enabled,
+        sendAlerts: updated.sendAlerts,
+        sendServiceUpdates: updated.sendServiceUpdates,
+        sendNews: updated.sendNews,
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+      });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

@@ -43,10 +43,15 @@ async function postToTelegram(chatId: string, text: string): Promise<{ ok: boole
   }
 }
 
-export async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
+export type TelegramCategory = "alert" | "service_update" | "news";
+
+export async function sendTelegramMessage(text: string, category?: TelegramCategory): Promise<{ ok: boolean; error?: string }> {
   const settings = await storage.getTelegramSettings();
   if (!settings || !settings.enabled) return { ok: false, error: "Telegram notifications disabled" };
   if (!settings.chatId) return { ok: false, error: "No chat ID configured" };
+  if (category === "alert" && settings.sendAlerts === false) return { ok: false, error: "Alerts disabled for Telegram" };
+  if (category === "service_update" && settings.sendServiceUpdates === false) return { ok: false, error: "Service updates disabled for Telegram" };
+  if (category === "news" && settings.sendNews === false) return { ok: false, error: "News disabled for Telegram" };
   return postToTelegram(settings.chatId, text);
 }
 
@@ -56,8 +61,8 @@ export async function sendTelegramTestMessage(text: string): Promise<{ ok: boole
   return postToTelegram(settings.chatId, text);
 }
 
-export function fireTelegram(text: string): void {
-  sendTelegramMessage(text).catch((e) => console.error("[Telegram] fire error:", e));
+export function fireTelegram(text: string, category?: TelegramCategory): void {
+  sendTelegramMessage(text, category).catch((e) => console.error("[Telegram] fire error:", e));
 }
 
 const impactEmoji: Record<string, string> = {
