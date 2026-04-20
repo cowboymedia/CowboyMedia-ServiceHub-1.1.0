@@ -16,19 +16,15 @@ function truncate(text: string, max = 800): string {
   return t.length > max ? t.substring(0, max) + "..." : t;
 }
 
-export async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
+async function postToTelegram(chatId: string, text: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) return { ok: false, error: "TELEGRAM_BOT_TOKEN not configured" };
-    const settings = await storage.getTelegramSettings();
-    if (!settings || !settings.enabled) return { ok: false, error: "Telegram notifications disabled" };
-    if (!settings.chatId) return { ok: false, error: "No chat ID configured" };
-
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: settings.chatId,
+        chat_id: chatId,
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
@@ -45,6 +41,19 @@ export async function sendTelegramMessage(text: string): Promise<{ ok: boolean; 
     console.error("[Telegram] send error:", e?.message || e);
     return { ok: false, error: e?.message || "Unknown error" };
   }
+}
+
+export async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
+  const settings = await storage.getTelegramSettings();
+  if (!settings || !settings.enabled) return { ok: false, error: "Telegram notifications disabled" };
+  if (!settings.chatId) return { ok: false, error: "No chat ID configured" };
+  return postToTelegram(settings.chatId, text);
+}
+
+export async function sendTelegramTestMessage(text: string): Promise<{ ok: boolean; error?: string }> {
+  const settings = await storage.getTelegramSettings();
+  if (!settings?.chatId) return { ok: false, error: "No chat ID configured" };
+  return postToTelegram(settings.chatId, text);
 }
 
 export function fireTelegram(text: string): void {

@@ -17,7 +17,7 @@ import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple, renderTemplate, getDefaultTemplate } from "./email";
 import { format } from "date-fns";
 import sanitizeHtml from "sanitize-html";
-import { fireTelegram, sendTelegramMessage, composeAlertCreated, composeAlertUpdate, composeAlertResolved, composeServiceUpdate, composeNews } from "./telegram";
+import { fireTelegram, sendTelegramTestMessage, composeAlertCreated, composeAlertUpdate, composeAlertResolved, composeServiceUpdate, composeNews } from "./telegram";
 
 const sanitizeNewsContent = (html: string): string =>
   sanitizeHtml(html, {
@@ -4014,25 +4014,11 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
 
   app.post("/api/admin/telegram-settings/test", requireAdmin, async (_req, res) => {
     try {
-      if (!process.env.TELEGRAM_BOT_TOKEN) {
-        return res.status(400).json({ ok: false, error: "TELEGRAM_BOT_TOKEN not configured" });
-      }
-      const settings = await storage.getTelegramSettings();
-      if (!settings?.chatId) {
-        return res.status(400).json({ ok: false, error: "No chat ID configured" });
-      }
-      // Send a test message regardless of enabled flag so admins can verify connectivity
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      const text = `✅ <b>Test message from ServiceHub</b>\n<i>If you can see this, Telegram notifications are wired up correctly.</i>`;
-      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: settings.chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
-      });
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        return res.status(400).json({ ok: false, error: `Telegram API ${response.status}: ${body}` });
-      }
+      // Bypass the enabled flag so admins can verify connectivity before turning it on
+      const result = await sendTelegramTestMessage(
+        `✅ <b>Test message from ServiceHub</b>\n<i>If you can see this, Telegram notifications are wired up correctly.</i>`
+      );
+      if (!result.ok) return res.status(400).json(result);
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });
