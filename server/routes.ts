@@ -17,6 +17,7 @@ import webpush from "web-push";
 import { sendEmail, sendEmailToMultiple, renderTemplate, getDefaultTemplate } from "./email";
 import { format } from "date-fns";
 import sanitizeHtml from "sanitize-html";
+import { fireTelegram, sendTelegramMessage, composeAlertCreated, composeAlertUpdate, composeAlertResolved, composeServiceUpdate, composeNews } from "./telegram";
 
 const sanitizeNewsContent = (html: string): string =>
   sanitizeHtml(html, {
@@ -1652,6 +1653,13 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const subIds = subscribers.map(u => u.id);
       storage.createContentNotificationBulk(subIds, "alerts", `${serviceName}: ${impactLabel} — ${alert.title}`, alert.id).catch(() => {});
+      fireTelegram(composeAlertCreated({
+        serviceName,
+        impact,
+        severity: alert.severity,
+        title: alert.title,
+        description: alert.description,
+      }));
       res.json(alert);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1744,6 +1752,13 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
           ? `${serviceName}: Resolved — ${alert.title}`
           : `${serviceName} Update: ${alert.title}`;
         storage.createContentNotificationBulk(subIds, "alerts", notifMsg, alert.id).catch(() => {});
+        fireTelegram(composeAlertUpdate({
+          serviceName,
+          title: alert.title,
+          status: updateData.status,
+          message: updateData.message,
+          impact: hasImpactChange ? serviceImpact : null,
+        }));
       }
       res.json(update);
     } catch (e: any) {
@@ -1804,6 +1819,11 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const subIds = subscribers.map(u => u.id);
       storage.createContentNotificationBulk(subIds, "alerts", `${serviceName}: Resolved — ${updated.title}`, updated.id).catch(() => {});
+      fireTelegram(composeAlertResolved({
+        serviceName,
+        title: updated.title,
+        resolveMessage,
+      }));
       res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1869,6 +1889,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const subIds = subscribedCustomers.map(u => u.id);
       storage.createContentNotificationBulk(subIds, "service-updates", title, update.id).catch(() => {});
+      fireTelegram(composeServiceUpdate({ serviceName, title, description }));
       res.json(update);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1941,6 +1962,7 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       }
       const customerIds = allUsers.filter(u => u.role === "customer").map(u => u.id);
       storage.createContentNotificationBulk(customerIds, "news", story.title, story.id).catch(() => {});
+      fireTelegram(composeNews({ title: story.title, content: story.content || "" }));
       res.json(story);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -3956,6 +3978,64 @@ ${m.imageUrl ? `<p style="margin:4px 0 0 0;"><a href="${escapeHtml(m.imageUrl)}"
       res.json(safe);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Telegram settings (admin only)
+  app.get("/api/admin/telegram-settings", requireAdmin, async (_req, res) => {
+    try {
+      const settings = await storage.getTelegramSettings();
+      res.json({
+        chatId: settings?.chatId ?? "",
+        enabled: !!settings?.enabled,
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/admin/telegram-settings", requireAdmin, async (req, res) => {
+    try {
+      const { chatId, enabled } = req.body ?? {};
+      const patch: { chatId?: string | null; enabled?: boolean } = {};
+      if (chatId !== undefined) patch.chatId = typeof chatId === "string" ? chatId.trim() || null : null;
+      if (enabled !== undefined) patch.enabled = !!enabled;
+      const updated = await storage.updateTelegramSettings(patch);
+      logActivity("system", "telegram_settings_updated", {
+        actorId: req.session.userId!,
+        summary: `Telegram notifications ${updated.enabled ? "enabled" : "disabled"}${updated.chatId ? ` (chat ${updated.chatId})` : ""}`,
+      });
+      res.json({ chatId: updated.chatId ?? "", enabled: !!updated.enabled, hasToken: !!process.env.TELEGRAM_BOT_TOKEN });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/admin/telegram-settings/test", requireAdmin, async (_req, res) => {
+    try {
+      if (!process.env.TELEGRAM_BOT_TOKEN) {
+        return res.status(400).json({ ok: false, error: "TELEGRAM_BOT_TOKEN not configured" });
+      }
+      const settings = await storage.getTelegramSettings();
+      if (!settings?.chatId) {
+        return res.status(400).json({ ok: false, error: "No chat ID configured" });
+      }
+      // Send a test message regardless of enabled flag so admins can verify connectivity
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const text = `✅ <b>Test message from ServiceHub</b>\n<i>If you can see this, Telegram notifications are wired up correctly.</i>`;
+      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: settings.chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return res.status(400).json({ ok: false, error: `Telegram API ${response.status}: ${body}` });
+      }
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 

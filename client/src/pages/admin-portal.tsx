@@ -4972,6 +4972,138 @@ const TILE_MANAGE_MAP: Record<string, string> = {
   "monitoring": "monitoring.manage",
 };
 
+function TelegramTab() {
+  const { toast } = useToast();
+  const [chatId, setChatId] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const { data: settings, isLoading } = useQuery<{ chatId: string; enabled: boolean; hasToken: boolean }>({
+    queryKey: ["/api/admin/telegram-settings"],
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setChatId(settings.chatId || "");
+      setEnabled(!!settings.enabled);
+    }
+  }, [settings]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { chatId: string; enabled: boolean }) => {
+      const res = await apiRequest("PATCH", "/api/admin/telegram-settings", data);
+      if (!res.ok) throw new Error("Failed to save settings");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/telegram-settings"] });
+      toast({ title: "Telegram settings saved" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch("/api/admin/telegram-settings/test", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        toast({ title: "Test message sent", description: "Check your Telegram group." });
+      } else {
+        toast({ title: "Test failed", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Test failed", description: e.message, variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (isLoading) return <div className="space-y-3"><Skeleton className="h-40 w-full" /></div>;
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Send className="w-5 h-5" /> Telegram Notifications</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md border p-3 text-sm space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Bot token:</span>
+              {settings?.hasToken ? (
+                <span className="text-green-600 font-medium">Configured</span>
+              ) : (
+                <span className="text-destructive font-medium">Missing</span>
+              )}
+            </div>
+            {!settings?.hasToken && (
+              <p className="text-xs text-muted-foreground">
+                Ask the administrator to set the <code className="font-mono">TELEGRAM_BOT_TOKEN</code> secret.
+                Create a bot via <strong>@BotFather</strong> on Telegram to get a token.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="telegram-chat-id">Telegram Chat ID</Label>
+            <Input
+              id="telegram-chat-id"
+              placeholder="e.g. -1001234567890"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+              data-testid="input-telegram-chat-id"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Add your bot to the group, then use @RawDataBot or a similar helper bot to obtain the group's chat ID (usually a negative number for groups).
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <p className="text-sm font-medium">Enable Telegram notifications</p>
+              <p className="text-xs text-muted-foreground">
+                When enabled, alerts, service updates, and news are posted to the configured chat.
+              </p>
+            </div>
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              data-testid="switch-telegram-enabled"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => saveMutation.mutate({ chatId: chatId.trim(), enabled })}
+              disabled={saveMutation.isPending}
+              data-testid="button-save-telegram"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save Settings"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleTest}
+              disabled={testing || !settings?.hasToken || !chatId.trim()}
+              data-testid="button-test-telegram"
+            >
+              {testing ? "Sending..." : "Send Test Message"}
+            </Button>
+          </div>
+
+          <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground">What gets sent:</p>
+            <p>🚨 Service alerts (created / updated / resolved) — with service name and impact</p>
+            <p>📢 Service updates — with service name</p>
+            <p>📰 News stories — title and preview</p>
+            <p className="mt-2">If Telegram fails or is disabled, your app notifications still send normally.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin, isMasterAdmin, hasPermission } = useAuth();
   const [, navigate] = useLocation();
@@ -5021,6 +5153,7 @@ export default function AdminPortal() {
     { key: "chat-admin", label: "Chat Admin", icon: ShieldCheck, color: "text-violet-500", bg: "bg-violet-500/10" },
     { key: "monitoring", label: "URL Monitoring", icon: Globe, color: "text-lime-500", bg: "bg-lime-500/10" },
     { key: "logs", label: "Logs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" },
+    { key: "telegram", label: "Telegram", icon: Send, color: "text-blue-400", bg: "bg-blue-400/10", masterOnly: true },
     { key: "admin-management", label: "Admin Management", icon: Crown, color: "text-yellow-500", bg: "bg-yellow-500/10", masterOnly: true },
   ];
 
@@ -5052,6 +5185,7 @@ export default function AdminPortal() {
       case "chat-admin": return <ChatAdminTab />;
       case "monitoring": return <MonitoringTab canManage={canManageSection("monitoring")} />;
       case "logs": return <LogsTab />;
+      case "telegram": return isMasterAdmin ? <TelegramTab /> : null;
       case "admin-management": return isMasterAdmin ? <AdminManagementTab /> : null;
       default: return null;
     }

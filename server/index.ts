@@ -133,6 +133,18 @@ app.use((req, res, next) => {
   }
 
   try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS telegram_settings (
+      id VARCHAR PRIMARY KEY DEFAULT 'singleton',
+      chat_id TEXT,
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    )`);
+    await db.execute(sql`INSERT INTO telegram_settings (id, enabled) VALUES ('singleton', FALSE) ON CONFLICT (id) DO NOTHING`);
+  } catch (e) {
+    console.error("Migration error (telegram_settings):", e);
+  }
+
+  try {
     await seed();
   } catch (e) {
     console.error("Seed error:", e);

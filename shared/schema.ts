@@ -492,6 +492,16 @@ export const insertChatWordFilterSchema = createInsertSchema(chatWordFilters).om
 export type InsertChatWordFilter = z.infer<typeof insertChatWordFilterSchema>;
 export type ChatWordFilter = typeof chatWordFilters.$inferSelect;
 
+// Telegram settings (singleton row)
+export const telegramSettings = pgTable("telegram_settings", {
+  id: varchar("id").primaryKey().default("singleton"),
+  chatId: text("chat_id"),
+  enabled: boolean("enabled").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type TelegramSettings = typeof telegramSettings.$inferSelect;
+
 // Login schema
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),

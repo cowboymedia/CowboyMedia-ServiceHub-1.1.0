@@ -33,7 +33,8 @@ import {
   type CommunityMessage, type InsertCommunityMessage,
   type CommunityReaction, type InsertCommunityReaction,
   type ChatWordFilter,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications, communityMessages, communityReactions, chatWordFilters,
+  type TelegramSettings,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications, communityMessages, communityReactions, chatWordFilters, telegramSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -225,6 +226,9 @@ export interface IStorage {
   addWordFilter(word: string): Promise<ChatWordFilter>;
   deleteWordFilter(id: string): Promise<void>;
   getBannedUsers(): Promise<User[]>;
+
+  getTelegramSettings(): Promise<TelegramSettings | undefined>;
+  updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean }): Promise<TelegramSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1147,6 +1151,21 @@ export class DatabaseStorage implements IStorage {
 
   async getBannedUsers(): Promise<User[]> {
     return db.select().from(users).where(eq(users.chatBanned, true));
+  }
+
+  async getTelegramSettings(): Promise<TelegramSettings | undefined> {
+    const [row] = await db.select().from(telegramSettings).where(eq(telegramSettings.id, "singleton"));
+    return row;
+  }
+
+  async updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean }): Promise<TelegramSettings> {
+    const patch: Record<string, any> = { updatedAt: new Date() };
+    if (data.chatId !== undefined) patch.chatId = data.chatId;
+    if (data.enabled !== undefined) patch.enabled = data.enabled;
+    const [updated] = await db.update(telegramSettings).set(patch).where(eq(telegramSettings.id, "singleton")).returning();
+    if (updated) return updated;
+    const [created] = await db.insert(telegramSettings).values({ id: "singleton", ...patch }).returning();
+    return created;
   }
 }
 

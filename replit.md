@@ -42,3 +42,4 @@ The frontend uses React with Vite, TailwindCSS, and Shadcn UI for a modern aesth
 - **Database**: PostgreSQL
 - **Email Service**: SendGrid
 - **Web Push API**: VAPID
+- **Telegram Bot API**: Optional group notifications for service alerts (create/update/resolve), service updates, and news. Configured via admin portal (chat ID + toggle); requires `TELEGRAM_BOT_TOKEN` secret. Fire-and-forget — failures never block core operations.
