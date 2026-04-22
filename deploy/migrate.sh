@@ -148,6 +148,15 @@ if [[ "$MODE" == "full" ]]; then
   mkdir -p "$APP_DIR" "$LOG_DIR" "$BACKUP_DIR"
   chown -R "$APP_USER:$APP_USER" "$APP_DIR" "$LOG_DIR" "$BACKUP_DIR"
 
+  # Now that $APP_USER exists, re-tighten the bundle perms set during
+  # first-time fallback (above) from world-readable down to group-only.
+  chgrp "$APP_USER" "$BUNDLE_ROOT"
+  chmod 750 "$BUNDLE_ROOT"
+  if [[ -f "$BUNDLE_ROOT/db.dump" ]]; then
+    chgrp "$APP_USER" "$BUNDLE_ROOT/db.dump"
+    chmod 640 "$BUNDLE_ROOT/db.dump"
+  fi
+
   systemctl enable --now postgresql
   sudo -u postgres psql <<SQL
 DO \$\$
