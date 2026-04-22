@@ -150,23 +150,29 @@ SQL
 
   echo "==> Writing $ENV_FILE from migrated secrets..."
   install -m 600 -o "$APP_USER" -g "$APP_USER" /dev/null "$ENV_FILE"
-  cat > "$ENV_FILE" <<EOF
-DATABASE_URL=postgres://$APP_USER:$DB_PASSWORD@127.0.0.1:5432/servicehub
-SESSION_SECRET=$SESSION_SECRET
-APP_BASE_URL=$APP_BASE_URL
-NODE_ENV=production
-PORT=${PORT:-5000}
-VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
-VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
-VAPID_CONTACT_EMAIL=${VAPID_CONTACT_EMAIL:-$ADMIN_EMAIL}
-SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
-TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-ONESIGNAL_APP_ID=${ONESIGNAL_APP_ID:-}
-ONESIGNAL_REST_API_KEY=${ONESIGNAL_REST_API_KEY:-}
-FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON:-}
-BACKUP_ENCRYPTION_PASSPHRASE=${BACKUP_ENCRYPTION_PASSPHRASE:-$(openssl rand -hex 24)}
-BACKUP_RCLONE_REMOTE=${BACKUP_RCLONE_REMOTE:-}
-EOF
+  # Single-quote each value so `. $ENV_FILE` is safe even when the value
+  # contains JSON, spaces, or shell metacharacters.
+  write_env_kv() {
+    local k="$1" v="$2"
+    printf "%s='%s'\n" "$k" "${v//\'/\'\\\'\'}"
+  }
+  {
+    write_env_kv DATABASE_URL "postgres://$APP_USER:$DB_PASSWORD@127.0.0.1:5432/servicehub"
+    write_env_kv SESSION_SECRET "$SESSION_SECRET"
+    write_env_kv APP_BASE_URL  "$APP_BASE_URL"
+    write_env_kv NODE_ENV      "production"
+    write_env_kv PORT          "${PORT:-5000}"
+    write_env_kv VAPID_PUBLIC_KEY  "$VAPID_PUBLIC_KEY"
+    write_env_kv VAPID_PRIVATE_KEY "$VAPID_PRIVATE_KEY"
+    write_env_kv VAPID_CONTACT_EMAIL "${VAPID_CONTACT_EMAIL:-$ADMIN_EMAIL}"
+    write_env_kv SENDGRID_API_KEY     "${SENDGRID_API_KEY:-}"
+    write_env_kv TELEGRAM_BOT_TOKEN   "${TELEGRAM_BOT_TOKEN:-}"
+    write_env_kv ONESIGNAL_APP_ID     "${ONESIGNAL_APP_ID:-}"
+    write_env_kv ONESIGNAL_REST_API_KEY "${ONESIGNAL_REST_API_KEY:-}"
+    write_env_kv FIREBASE_SERVICE_ACCOUNT_JSON "${FIREBASE_SERVICE_ACCOUNT_JSON:-}"
+    write_env_kv BACKUP_ENCRYPTION_PASSPHRASE "${BACKUP_ENCRYPTION_PASSPHRASE:-$(openssl rand -hex 24)}"
+    write_env_kv BACKUP_RCLONE_REMOTE "${BACKUP_RCLONE_REMOTE:-}"
+  } > "$ENV_FILE"
   chown "$APP_USER:$APP_USER" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
 
@@ -185,17 +191,36 @@ else
     echo "ERROR: --restore-only requires $ENV_FILE to already exist (run full migrate first)."
     exit 1
   fi
-  echo "==> Reconciling mandatory secrets in $ENV_FILE with bundle..."
-  for v in SESSION_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY APP_BASE_URL; do
-    bundle_val="${!v}"
+  echo "==> Reconciling secrets in $ENV_FILE with bundle (all allowlisted keys)..."
+  # Sync every allowlisted key that the bundle provides (non-empty), not just
+  # the mandatory ones. Keeps optional secrets (SendGrid, Telegram, etc.) in
+  # lockstep with the source instance so behaviour after cutover is identical.
+  for v in $ALLOWED_KEYS; do
+    bundle_val="${!v:-}"
+    [[ -z "$bundle_val" ]] && continue
     current_val="$(grep -E "^${v}=" "$ENV_FILE" | head -n1 | sed -E "s/^${v}=//" || true)"
     if [[ "$current_val" != "$bundle_val" ]]; then
-      echo "    overwriting $v in $ENV_FILE (preserving bundle value — required for live state)"
-      esc="$(printf '%s' "$bundle_val" | sed -e 's/[\/&|]/\\&/g')"
+      echo "    syncing $v from bundle"
+      # Quote the value so `. $ENV_FILE` parses safely even when the value
+      # contains spaces or shell metacharacters (e.g. FIREBASE_SERVICE_ACCOUNT_JSON).
+      # Single-quote and escape any embedded single quotes.
+      quoted="'${bundle_val//\'/\'\\\'\'}'"
       if grep -qE "^${v}=" "$ENV_FILE"; then
-        sed -i "s|^${v}=.*|${v}=${esc}|" "$ENV_FILE"
+        # Use a delimiter unlikely to collide with JSON contents.
+        python3 -c "
+import sys, re
+p='$ENV_FILE'; k='$v'; v=sys.argv[1]
+with open(p) as f: lines=f.readlines()
+out=[]; replaced=False
+for ln in lines:
+    if ln.startswith(k+'='):
+        out.append(k+'='+v+'\n'); replaced=True
+    else: out.append(ln)
+if not replaced: out.append(k+'='+v+'\n')
+open(p,'w').writelines(out)
+" "$quoted"
       else
-        echo "${v}=${bundle_val}" >> "$ENV_FILE"
+        printf '%s=%s\n' "$v" "$quoted" >> "$ENV_FILE"
       fi
     fi
   done

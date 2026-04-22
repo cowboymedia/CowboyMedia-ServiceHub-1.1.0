@@ -103,23 +103,30 @@ VAPID_PUBLIC="$(echo "$VAPID_OUT" | grep -oE '"publicKey":"[^"]+"' | cut -d'"' -
 VAPID_PRIVATE="$(echo "$VAPID_OUT" | grep -oE '"privateKey":"[^"]+"' | cut -d'"' -f4)"
 
 echo "==> Writing $ENV_FILE..."
-cat > "$ENV_FILE" <<EOF
-DATABASE_URL=postgres://$APP_USER:$DB_PASSWORD@127.0.0.1:5432/servicehub
-SESSION_SECRET=$SESSION_SECRET
-APP_BASE_URL=https://$DOMAIN
-NODE_ENV=production
-PORT=5000
-VAPID_PUBLIC_KEY=$VAPID_PUBLIC
-VAPID_PRIVATE_KEY=$VAPID_PRIVATE
-VAPID_CONTACT_EMAIL=$ADMIN_EMAIL
-SENDGRID_API_KEY=
-TELEGRAM_BOT_TOKEN=
-ONESIGNAL_APP_ID=
-ONESIGNAL_REST_API_KEY=
-FIREBASE_SERVICE_ACCOUNT_JSON=
-BACKUP_ENCRYPTION_PASSPHRASE=$(openssl rand -hex 24)
-BACKUP_RCLONE_REMOTE=
-EOF
+# Single-quote every value so `. $ENV_FILE` parses safely even when values
+# contain JSON, spaces, or shell metacharacters. Embedded single quotes are
+# escaped with the standard '\'' trick.
+write_env_kv() {
+  local k="$1" v="$2"
+  printf "%s='%s'\n" "$k" "${v//\'/\'\\\'\'}"
+}
+{
+  write_env_kv DATABASE_URL "postgres://$APP_USER:$DB_PASSWORD@127.0.0.1:5432/servicehub"
+  write_env_kv SESSION_SECRET "$SESSION_SECRET"
+  write_env_kv APP_BASE_URL  "https://$DOMAIN"
+  write_env_kv NODE_ENV      "production"
+  write_env_kv PORT          "5000"
+  write_env_kv VAPID_PUBLIC_KEY  "$VAPID_PUBLIC"
+  write_env_kv VAPID_PRIVATE_KEY "$VAPID_PRIVATE"
+  write_env_kv VAPID_CONTACT_EMAIL "$ADMIN_EMAIL"
+  write_env_kv SENDGRID_API_KEY     ""
+  write_env_kv TELEGRAM_BOT_TOKEN   ""
+  write_env_kv ONESIGNAL_APP_ID     ""
+  write_env_kv ONESIGNAL_REST_API_KEY ""
+  write_env_kv FIREBASE_SERVICE_ACCOUNT_JSON ""
+  write_env_kv BACKUP_ENCRYPTION_PASSPHRASE "$(openssl rand -hex 24)"
+  write_env_kv BACKUP_RCLONE_REMOTE ""
+} > "$ENV_FILE"
 chown "$APP_USER:$APP_USER" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
@@ -149,6 +156,24 @@ ufw --force enable
 
 echo "==> Configuring fail2ban..."
 systemctl enable --now fail2ban
+
+echo "==> Enabling unattended security upgrades..."
+# Force-enable so a fresh install ships with auto-patching even if the
+# distro default is "ask". Auto-reboots disabled to avoid surprise restarts.
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+EOF
+cat > /etc/apt/apt.conf.d/51servicehub-unattended <<EOF
+Unattended-Upgrade::Allowed-Origins {
+        "\${distro_id}:\${distro_codename}-security";
+        "\${distro_id}ESMApps:\${distro_codename}-apps-security";
+        "\${distro_id}ESM:\${distro_codename}-infra-security";
+};
+Unattended-Upgrade::Automatic-Reboot "false";
+EOF
+systemctl enable --now unattended-upgrades
 
 echo "==> Installing logrotate config..."
 cat > /etc/logrotate.d/servicehub <<EOF
