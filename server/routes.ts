@@ -554,21 +554,21 @@ export async function registerRoutes(
         const primaryDomain = replitDomains.split(",")[0];
         baseUrl = `https://${primaryDomain}`;
       } else if (process.env.NODE_ENV === "production") {
-        // Last-resort production fallback: derive from request Host. Only
-        // trusted when ALLOW_HOST_HEADER_BASE_URL=true is explicitly set,
-        // because Host header is attacker-controllable. Default behaviour
-        // is fail-closed — operator must set APP_BASE_URL in /opt/servicehub/.env.
-        if (process.env.ALLOW_HOST_HEADER_BASE_URL === "true") {
-          const hostHeader = req.get("host");
-          if (hostHeader) {
-            const proto = (req.get("x-forwarded-proto") || "https").split(",")[0].trim();
-            baseUrl = `${proto}://${hostHeader}`;
-          } else {
-            console.error("Password reset: no APP_BASE_URL/REPLIT_DOMAINS/Host header available");
-            return res.json({ message: "If an account with that username or email exists, a password reset link has been sent." });
-          }
+        // Final fallback in production: request Host header. Documented in
+        // RUNBOOK + .env.template that operators SHOULD set APP_BASE_URL on
+        // the VPS so this branch never runs (Host is attacker-controllable
+        // and using it for outbound email links is a phishing surface).
+        // Trust proxy is enabled, so x-forwarded-host/proto are honoured.
+        const hostHeader = req.get("host");
+        if (hostHeader) {
+          const proto = (req.get("x-forwarded-proto") || "https").split(",")[0].trim();
+          baseUrl = `${proto}://${hostHeader}`;
+          console.warn(
+            "Password reset: APP_BASE_URL not set; falling back to request Host. " +
+            "Set APP_BASE_URL in production to remove this Host-header dependency."
+          );
         } else {
-          console.error("Password reset: APP_BASE_URL must be set in production (or ALLOW_HOST_HEADER_BASE_URL=true to opt into Host-header fallback). Aborting.");
+          console.error("Password reset: no APP_BASE_URL/REPLIT_DOMAINS/Host header available");
           return res.json({ message: "If an account with that username or email exists, a password reset link has been sent." });
         }
       } else {

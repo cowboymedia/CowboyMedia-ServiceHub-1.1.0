@@ -294,7 +294,7 @@ app.use((req, res, next) => {
         // Hard-terminate any client that hasn't acknowledged in 5s.
         const wsForce = setTimeout(() => {
           wss.clients.forEach((ws) => {
-            try { (ws as any).terminate?.(); } catch {}
+            try { ws.terminate(); } catch {}
           });
         }, 5000);
         wsForce.unref();

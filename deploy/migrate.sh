@@ -103,8 +103,19 @@ if [[ "$MODE" == "full" ]]; then
   apt-get update -y
   apt-get install -y \
     ca-certificates curl gnupg lsb-release build-essential git ufw fail2ban \
-    postgresql postgresql-contrib nginx certbot python3-certbot-nginx \
+    nginx certbot python3-certbot-nginx \
     rclone unattended-upgrades logrotate
+
+  # Postgres 16 from PGDG (pinned across 22.04 and 24.04).
+  echo "==> Installing Postgres 16 (PGDG repo)..."
+  install -d -m 0755 /etc/apt/keyrings
+  curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+  CODENAME="$(lsb_release -cs)"
+  echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $CODENAME-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list
+  apt-get update -y
+  apt-get install -y postgresql-16 postgresql-contrib-16
 
   if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -c2- | cut -d. -f1)" -lt 20 ]]; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
