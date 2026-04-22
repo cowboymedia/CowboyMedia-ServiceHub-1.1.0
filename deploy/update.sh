@@ -94,7 +94,8 @@ if [[ "$HEALTH_OK" -ne 1 ]]; then
   sudo -u "$APP_USER" -H bash -lc "set -a && . $ENV_FILE && set +a && \
     pg_restore --clean --if-exists --no-owner --no-acl \
       --dbname=\"\$DATABASE_URL\" \"$SNAPSHOT\""
-  sudo -u "$APP_USER" -H bash -lc "pm2 reload servicehub --update-env"
+  sudo -u "$APP_USER" -H bash -lc "set -a && . $ENV_FILE && set +a && \
+    pm2 reload servicehub --update-env && pm2 save"
   echo "Rolled back to $PREV_SHA."
   exit 1
 fi
