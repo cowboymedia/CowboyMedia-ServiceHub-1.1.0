@@ -40,12 +40,23 @@ echo "==> Extracting bundle to $WORK..."
 tar -xzf "$BUNDLE" -C "$WORK"
 BUNDLE_ROOT="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 [[ -z "$BUNDLE_ROOT" ]] && BUNDLE_ROOT="$WORK"
-# Narrow read access: only the bundle dir (so $APP_USER can traverse) and
-# db.dump (so pg_restore can read it). secrets.env is parsed by *this* root
-# script and never read by the unprivileged user, so leave its tar-recorded
-# 0600 mode intact to keep credentials off other-readable.
-chmod 755 "$BUNDLE_ROOT"
-[[ -f "$BUNDLE_ROOT/db.dump" ]] && chmod 644 "$BUNDLE_ROOT/db.dump"
+# Grant just enough access for the unprivileged $APP_USER to read db.dump
+# via group ownership — avoids world-readable bits. secrets.env stays
+# root-only (0600, root:root) since only this root script parses it.
+if id -u "$APP_USER" >/dev/null 2>&1; then
+  chgrp "$APP_USER" "$BUNDLE_ROOT"
+  chmod 750 "$BUNDLE_ROOT"
+  if [[ -f "$BUNDLE_ROOT/db.dump" ]]; then
+    chgrp "$APP_USER" "$BUNDLE_ROOT/db.dump"
+    chmod 640 "$BUNDLE_ROOT/db.dump"
+  fi
+else
+  # First-time install: $APP_USER doesn't exist yet. Fall back to broader
+  # perms; they'll be re-tightened on subsequent --restore-only runs and
+  # the temp dir is wiped on EXIT regardless.
+  chmod 755 "$BUNDLE_ROOT"
+  [[ -f "$BUNDLE_ROOT/db.dump" ]] && chmod 644 "$BUNDLE_ROOT/db.dump"
+fi
 
 DUMP_FILE="$BUNDLE_ROOT/db.dump"
 SECRETS_FILE="$BUNDLE_ROOT/secrets.env"
