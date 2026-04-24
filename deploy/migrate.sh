@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Migrate an existing ServiceHub instance from Replit to a fresh VPS.
 # Same as install.sh but restores DB + secrets from a migration bundle
-# instead of generating fresh ones.
+# (or just a bare DB dump, when the box is already provisioned).
 #
 # Usage:
-#   sudo bash migrate.sh <bundle.tar.gz>
-#   sudo bash migrate.sh <bundle.tar.gz> --restore-only   # box already provisioned
+#   sudo bash migrate.sh <bundle.tar.gz>                  # full first-time install
+#   sudo bash migrate.sh <bundle.tar.gz> --restore-only   # box already provisioned, sync secrets+DB
+#   sudo bash migrate.sh <db.dump> --restore-only         # box already provisioned, refresh DB only
 #
-# The bundle is produced by deploy/export-from-replit.sh.
+# Bundle is produced by deploy/export-from-replit.sh.
+# Bare dump path (the third form) is for routine "pull latest from source DB"
+# refreshes between cutover-day and final flip — leaves $ENV_FILE untouched.
 
 set -euo pipefail
 
@@ -19,10 +22,18 @@ fi
 BUNDLE="${1:-}"
 MODE="${2:-full}"
 if [[ -z "$BUNDLE" || ! -f "$BUNDLE" ]]; then
-  echo "Usage: sudo bash $0 <bundle.tar.gz> [--restore-only]"
+  echo "Usage: sudo bash $0 <bundle.tar.gz|db.dump> [--restore-only]"
   exit 1
 fi
 [[ "$MODE" == "--restore-only" ]] && MODE=restore-only || MODE=full
+
+# Detect bare-dump path: --restore-only with a *.dump file (not a tarball).
+# In this mode we skip bundle extraction + secret reconciliation entirely
+# and only re-run pg_restore + pm2 reload.
+BARE_DUMP=0
+if [[ "$MODE" == "restore-only" && "$BUNDLE" =~ \.(dump|backup)$ ]]; then
+  BARE_DUMP=1
+fi
 
 APP_USER=servicehub
 APP_DIR=/opt/servicehub
@@ -30,86 +41,107 @@ LOG_DIR=/var/log/servicehub
 BACKUP_DIR=/var/backups/servicehub
 ENV_FILE="$APP_DIR/.env"
 
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-# mktemp -d creates a 0700 dir owned by root. The unprivileged $APP_USER
-# (servicehub) needs to traverse it to read the extracted db.dump for
-# pg_restore, so relax to 0755 (traversable, not writable by others).
-chmod 755 "$WORK"
-echo "==> Extracting bundle to $WORK..."
-tar -xzf "$BUNDLE" -C "$WORK"
-BUNDLE_ROOT="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-[[ -z "$BUNDLE_ROOT" ]] && BUNDLE_ROOT="$WORK"
-# Grant just enough access for the unprivileged $APP_USER to read db.dump
-# via group ownership — avoids world-readable bits. secrets.env stays
-# root-only (0600, root:root) since only this root script parses it.
-if id -u "$APP_USER" >/dev/null 2>&1; then
-  chgrp "$APP_USER" "$BUNDLE_ROOT"
-  chmod 750 "$BUNDLE_ROOT"
-  if [[ -f "$BUNDLE_ROOT/db.dump" ]]; then
-    chgrp "$APP_USER" "$BUNDLE_ROOT/db.dump"
-    chmod 640 "$BUNDLE_ROOT/db.dump"
-  fi
-else
-  # First-time install: $APP_USER doesn't exist yet. Fall back to broader
-  # perms; they'll be re-tightened on subsequent --restore-only runs and
-  # the temp dir is wiped on EXIT regardless.
-  chmod 755 "$BUNDLE_ROOT"
-  [[ -f "$BUNDLE_ROOT/db.dump" ]] && chmod 644 "$BUNDLE_ROOT/db.dump"
-fi
-
-DUMP_FILE="$BUNDLE_ROOT/db.dump"
-SECRETS_FILE="$BUNDLE_ROOT/secrets.env"
-MANIFEST_FILE="$BUNDLE_ROOT/MANIFEST.txt"
-
-if [[ ! -f "$DUMP_FILE" ]]; then
-  echo "ERROR: bundle missing db.dump"
-  exit 1
-fi
-if [[ ! -f "$SECRETS_FILE" ]]; then
-  echo "ERROR: bundle missing secrets.env (operator must fill secrets.env.template before re-bundling, or copy in place)"
-  exit 1
-fi
-
-echo "==> Loading secrets from $SECRETS_FILE (strict KEY=VALUE parse)..."
-# Do NOT `source` an untrusted bundle file as root — it would execute arbitrary
-# shell. Parse only well-formed KEY=VALUE lines and export them ourselves.
-ALLOWED_KEYS="DATABASE_URL SESSION_SECRET APP_BASE_URL NODE_ENV PORT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_CONTACT_EMAIL SENDGRID_API_KEY TELEGRAM_BOT_TOKEN ONESIGNAL_APP_ID ONESIGNAL_REST_API_KEY FIREBASE_SERVICE_ACCOUNT_JSON BACKUP_ENCRYPTION_PASSPHRASE BACKUP_RCLONE_REMOTE"
-while IFS= read -r line; do
-  # skip blanks and comments
-  [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-  [[ "$line" =~ ^[[:space:]]*# ]] && continue
-  # require KEY=VALUE where KEY is [A-Z_][A-Z0-9_]*
-  if [[ ! "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
-    echo "WARN: ignoring malformed line in secrets.env: $line"
-    continue
-  fi
-  key="${BASH_REMATCH[1]}"
-  val="${BASH_REMATCH[2]}"
-  # strip surrounding single or double quotes if present
-  if [[ "$val" =~ ^\".*\"$ ]] || [[ "$val" =~ ^\'.*\'$ ]]; then
-    val="${val:1:${#val}-2}"
-  fi
-  if [[ " $ALLOWED_KEYS " != *" $key "* ]]; then
-    echo "WARN: ignoring non-allowlisted key in secrets.env: $key"
-    continue
-  fi
-  printf -v "$key" '%s' "$val"
-  export "$key"
-done < "$SECRETS_FILE"
-
-# Refuse to proceed if mandatory secrets are blank — they MUST be carried
-# across or live state breaks (sessions, push subs).
-for v in SESSION_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY APP_BASE_URL; do
-  if [[ -z "${!v:-}" ]]; then
-    echo "ERROR: mandatory secret '$v' is empty in secrets.env. Refusing to continue."
-    echo "       Migrating with empty values would invalidate sessions or push subscriptions."
+if [[ "$BARE_DUMP" -eq 1 ]]; then
+  # Bare-dump path: caller passed a *.dump straight from pg_dump. Skip bundle
+  # extraction entirely. $ENV_FILE must already exist (we leave secrets alone).
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo "ERROR: --restore-only with a bare dump requires $ENV_FILE to already exist."
+    echo "       Either run a full migrate first, or pass a bundle.tar.gz instead."
     exit 1
   fi
-done
+  if ! id -u "$APP_USER" >/dev/null 2>&1; then
+    echo "ERROR: $APP_USER does not exist; bare-dump mode is for already-provisioned hosts."
+    exit 1
+  fi
+  DUMP_FILE="$BUNDLE"
+  MANIFEST_FILE=""
+  # Make readable by $APP_USER for pg_restore.
+  chgrp "$APP_USER" "$DUMP_FILE" 2>/dev/null || true
+  chmod 640 "$DUMP_FILE" 2>/dev/null || true
+  echo "==> Bare-dump mode: refreshing DB from $DUMP_FILE (env untouched)"
+else
+  WORK="$(mktemp -d)"
+  trap 'rm -rf "$WORK"' EXIT
+  # mktemp -d creates a 0700 dir owned by root. The unprivileged $APP_USER
+  # (servicehub) needs to traverse it to read the extracted db.dump for
+  # pg_restore, so relax to 0755 (traversable, not writable by others).
+  chmod 755 "$WORK"
+  echo "==> Extracting bundle to $WORK..."
+  tar -xzf "$BUNDLE" -C "$WORK"
+  BUNDLE_ROOT="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  [[ -z "$BUNDLE_ROOT" ]] && BUNDLE_ROOT="$WORK"
+  # Grant just enough access for the unprivileged $APP_USER to read db.dump
+  # via group ownership — avoids world-readable bits. secrets.env stays
+  # root-only (0600, root:root) since only this root script parses it.
+  if id -u "$APP_USER" >/dev/null 2>&1; then
+    chgrp "$APP_USER" "$BUNDLE_ROOT"
+    chmod 750 "$BUNDLE_ROOT"
+    if [[ -f "$BUNDLE_ROOT/db.dump" ]]; then
+      chgrp "$APP_USER" "$BUNDLE_ROOT/db.dump"
+      chmod 640 "$BUNDLE_ROOT/db.dump"
+    fi
+  else
+    # First-time install: $APP_USER doesn't exist yet. Fall back to broader
+    # perms; they'll be re-tightened on subsequent --restore-only runs and
+    # the temp dir is wiped on EXIT regardless.
+    chmod 755 "$BUNDLE_ROOT"
+    [[ -f "$BUNDLE_ROOT/db.dump" ]] && chmod 644 "$BUNDLE_ROOT/db.dump"
+  fi
 
-DOMAIN="$(echo "$APP_BASE_URL" | sed -E 's#^https?://##; s#/.*##')"
-echo "==> Domain derived from APP_BASE_URL: $DOMAIN"
+  DUMP_FILE="$BUNDLE_ROOT/db.dump"
+  SECRETS_FILE="$BUNDLE_ROOT/secrets.env"
+  MANIFEST_FILE="$BUNDLE_ROOT/MANIFEST.txt"
+
+  if [[ ! -f "$DUMP_FILE" ]]; then
+    echo "ERROR: bundle missing db.dump"
+    exit 1
+  fi
+  if [[ ! -f "$SECRETS_FILE" ]]; then
+    echo "ERROR: bundle missing secrets.env (operator must fill secrets.env.template before re-bundling, or copy in place)"
+    exit 1
+  fi
+
+  echo "==> Loading secrets from $SECRETS_FILE (strict KEY=VALUE parse)..."
+  # Do NOT `source` an untrusted bundle file as root — it would execute arbitrary
+  # shell. Parse only well-formed KEY=VALUE lines and export them ourselves.
+  ALLOWED_KEYS="DATABASE_URL SESSION_SECRET APP_BASE_URL NODE_ENV PORT VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_CONTACT_EMAIL SENDGRID_API_KEY TELEGRAM_BOT_TOKEN ONESIGNAL_APP_ID ONESIGNAL_REST_API_KEY FIREBASE_SERVICE_ACCOUNT_JSON BACKUP_ENCRYPTION_PASSPHRASE BACKUP_RCLONE_REMOTE"
+  while IFS= read -r line; do
+    # skip blanks and comments
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    # require KEY=VALUE where KEY is [A-Z_][A-Z0-9_]*
+    if [[ ! "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
+      echo "WARN: ignoring malformed line in secrets.env: $line"
+      continue
+    fi
+    key="${BASH_REMATCH[1]}"
+    val="${BASH_REMATCH[2]}"
+    # strip surrounding single or double quotes if present
+    if [[ "$val" =~ ^\".*\"$ ]] || [[ "$val" =~ ^\'.*\'$ ]]; then
+      val="${val:1:${#val}-2}"
+    fi
+    if [[ " $ALLOWED_KEYS " != *" $key "* ]]; then
+      echo "WARN: ignoring non-allowlisted key in secrets.env: $key"
+      continue
+    fi
+    printf -v "$key" '%s' "$val"
+    export "$key"
+  done < "$SECRETS_FILE"
+
+  # Refuse to proceed if mandatory secrets are blank — they MUST be carried
+  # across or live state breaks (sessions, push subs).
+  for v in SESSION_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY APP_BASE_URL; do
+    if [[ -z "${!v:-}" ]]; then
+      echo "ERROR: mandatory secret '$v' is empty in secrets.env. Refusing to continue."
+      echo "       Migrating with empty values would invalidate sessions or push subscriptions."
+      exit 1
+    fi
+  done
+
+  DOMAIN="$(echo "$APP_BASE_URL" | sed -E 's#^https?://##; s#/.*##')"
+  echo "==> Domain derived from APP_BASE_URL: $DOMAIN"
+fi
+# end of bundle-vs-bare-dump branch
 
 if [[ "$MODE" == "full" ]]; then
   read -rp "Admin contact email (TLS): " ADMIN_EMAIL
@@ -119,8 +151,29 @@ if [[ "$MODE" == "full" ]]; then
   read -rp "Git ref to deploy [main]: " GIT_REF
   GIT_REF="${GIT_REF:-main}"
 
-  echo "==> Installing system packages..."
+  echo "==> Preparing host (clearing pre-installed web servers / firewalls)..."
   export DEBIAN_FRONTEND=noninteractive
+  # Some VPS templates ship Apache2 listening on :80, which silently blocks
+  # Nginx from binding. Purge before installing our stack.
+  if dpkg -l 2>/dev/null | awk '{print $2}' | grep -qx apache2; then
+    echo "    apache2 detected — stopping & purging to free port 80"
+    systemctl disable --now apache2 2>/dev/null || true
+    apt-get purge -y apache2 apache2-utils apache2-bin apache2-data 2>/dev/null || true
+    apt-get autoremove -y 2>/dev/null || true
+  fi
+  # firewalld preinstalled+active on Liquid Web (and a few others). Open
+  # http/https there and skip UFW further down.
+  USE_FIREWALLD=0
+  if systemctl is-active --quiet firewalld 2>/dev/null; then
+    echo "    firewalld is active — will configure it (skipping UFW)"
+    USE_FIREWALLD=1
+    firewall-cmd --permanent --add-service=http  >/dev/null
+    firewall-cmd --permanent --add-service=https >/dev/null
+    firewall-cmd --permanent --add-service=ssh   >/dev/null
+    firewall-cmd --reload >/dev/null
+  fi
+
+  echo "==> Installing system packages..."
   apt-get update -y
   apt-get install -y \
     ca-certificates curl gnupg lsb-release build-essential git ufw fail2ban \
@@ -212,15 +265,21 @@ SQL
   echo "==> Pushing schema (additive-only guard: stdin closed, will fail on prompts)..."
   sudo -u "$APP_USER" -H bash -lc "cd $APP_DIR && set -a && . $ENV_FILE && set +a && npm run db:push </dev/null"
 else
-  # restore-only path: ensure mandatory secrets in the existing .env match
-  # what came in the bundle. The constraint is non-negotiable — if the box
-  # was provisioned with fresh SESSION_SECRET / VAPID values, restoring the
-  # DB without overwriting those env values would still invalidate sessions
-  # and push subscriptions.
+  # restore-only path. Two sub-modes:
+  #   - bundle:   reconcile $ENV_FILE secrets with what came in the bundle
+  #   - bare dump: skip reconciliation entirely (env is operator-managed)
   if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: --restore-only requires $ENV_FILE to already exist (run full migrate first)."
     exit 1
   fi
+  if [[ "$BARE_DUMP" -eq 1 ]]; then
+    echo "==> Bare-dump mode: leaving $ENV_FILE untouched (no secret reconciliation)."
+  else
+  # ensure mandatory secrets in the existing .env match what came in the
+  # bundle. The constraint is non-negotiable — if the box was provisioned
+  # with fresh SESSION_SECRET / VAPID values, restoring the DB without
+  # overwriting those env values would still invalidate sessions and push
+  # subscriptions.
   echo "==> Reconciling secrets in $ENV_FILE with bundle (all allowlisted keys)..."
   # Sync every allowlisted key that the bundle provides (non-empty), not just
   # the mandatory ones. Keeps optional secrets (SendGrid, Telegram, etc.) in
@@ -256,6 +315,8 @@ open(p,'w').writelines(out)
   done
   chown "$APP_USER:$APP_USER" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
+  fi
+  # end of bundle-vs-bare-dump reconciliation branch
 fi
 
 echo "==> Restoring database from $DUMP_FILE..."
@@ -287,9 +348,13 @@ if [[ "$MODE" == "full" ]]; then
   rm -f /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
 
-  ufw allow OpenSSH || true
-  ufw allow 'Nginx Full' || true
-  ufw --force enable
+  if [[ "${USE_FIREWALLD:-0}" -eq 1 ]]; then
+    echo "==> firewalld already configured for http/https/ssh; skipping UFW."
+  else
+    ufw allow OpenSSH || true
+    ufw allow 'Nginx Full' || true
+    ufw --force enable
+  fi
   systemctl enable --now fail2ban
 
   cat > /etc/logrotate.d/servicehub <<EOF

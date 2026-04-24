@@ -12,6 +12,7 @@ Tested-good options:
 - Hetzner CPX21 (~€8/mo) — best price/perf, EU/US locations.
 - DigitalOcean Premium AMD 2 GB ($18/mo) — easy snapshots.
 - Vultr High-Frequency 2 GB ($12/mo) — fast NVMe.
+- Liquid Web KVM 2 GB ($15/mo) — managed, US data centers. **Note:** their default Ubuntu image ships with Apache2 listening on :80 and `firewalld` active with a tight zone policy that drops public 80/443. Both `install.sh` and `migrate.sh` now detect and clean these up automatically (Apache2 purged, firewalld opened for http/https/ssh, UFW skipped). No manual intervention needed.
 
 Avoid OpenVZ-only providers; some block kernel features Postgres needs.
 
@@ -132,6 +133,34 @@ sudo -u servicehub pm2 logs servicehub
 ### 5g. Decommission the Replit instance
 
 Leave it running for 24 hours as a fallback (in case you need to grab a forgotten file). Then stop it.
+
+---
+
+## 5h. Refreshing the VPS DB between dry-run and final cutover
+
+If your dry-run instance is provisioned but you want to pull a fresh snapshot of production data (without re-running the whole migrate or touching `.env`), you have two options:
+
+**Option A — full bundle refresh (also rotates secrets to whatever's in the bundle):**
+```bash
+sudo bash /root/servicehub-installer/deploy/migrate.sh /root/servicehub-migration-<ts>.tar.gz --restore-only
+```
+
+**Option B — bare dump (DB only, leaves `.env` untouched):** new in this release.
+```bash
+# On the source (Replit shell or wherever pg_dump can reach the prod DB):
+pg_dump -Fc "$DATABASE_URL" -f /tmp/refresh.dump
+scp /tmp/refresh.dump root@<vps-ip>:/root/
+
+# On the VPS:
+sudo bash /root/servicehub-installer/deploy/migrate.sh /root/refresh.dump --restore-only
+```
+
+Option B is the right choice for routine "snap latest prod data over to staging" work. It refuses to run if `/opt/servicehub/.env` doesn't already exist (i.e. you can't use it on a virgin host).
+
+**Cleanup:** after either option succeeds, scrub the dump file — it contains every user's password hash:
+```bash
+shred -u /root/refresh.dump
+```
 
 ---
 

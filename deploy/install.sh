@@ -30,8 +30,32 @@ LOG_DIR=/var/log/servicehub
 BACKUP_DIR=/var/backups/servicehub
 ENV_FILE="$APP_DIR/.env"
 
-echo "==> Installing system packages..."
+echo "==> Preparing host (clearing pre-installed web servers / firewalls)..."
 export DEBIAN_FRONTEND=noninteractive
+# Some VPS templates (Liquid Web LAMP, certain Hetzner/OVH images) ship with
+# Apache2 already running on :80. It silently squats the port and prevents
+# Nginx from binding. Purge it before installing our stack.
+if dpkg -l 2>/dev/null | awk '{print $2}' | grep -qx apache2; then
+  echo "    apache2 detected — stopping & purging to free port 80"
+  systemctl disable --now apache2 2>/dev/null || true
+  apt-get purge -y apache2 apache2-utils apache2-bin apache2-data 2>/dev/null || true
+  apt-get autoremove -y 2>/dev/null || true
+fi
+# firewalld is preinstalled+active on Liquid Web (and a few others). It's
+# more capable than UFW and ships with a tight zone-based policy that drops
+# public 80/443 by default. If it's running, open http/https there instead
+# of fighting it with UFW. Otherwise we'll use UFW further down.
+USE_FIREWALLD=0
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+  echo "    firewalld is active — will configure it (skipping UFW)"
+  USE_FIREWALLD=1
+  firewall-cmd --permanent --add-service=http  >/dev/null
+  firewall-cmd --permanent --add-service=https >/dev/null
+  firewall-cmd --permanent --add-service=ssh   >/dev/null
+  firewall-cmd --reload >/dev/null
+fi
+
+echo "==> Installing system packages..."
 apt-get update -y
 apt-get install -y \
   ca-certificates curl gnupg lsb-release \
@@ -157,10 +181,14 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-echo "==> Configuring UFW..."
-ufw allow OpenSSH || true
-ufw allow 'Nginx Full' || true
-ufw --force enable
+if [[ "$USE_FIREWALLD" -eq 1 ]]; then
+  echo "==> firewalld already configured for http/https/ssh; skipping UFW."
+else
+  echo "==> Configuring UFW..."
+  ufw allow OpenSSH || true
+  ufw allow 'Nginx Full' || true
+  ufw --force enable
+fi
 
 echo "==> Configuring fail2ban..."
 systemctl enable --now fail2ban
