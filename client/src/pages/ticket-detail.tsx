@@ -11,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, isToday, isYesterday } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock, MoreVertical, ChevronDown, AlertCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, CheckCircle, User as UserIcon, Shield, Zap, ArrowRightLeft, FileText, Film, Download, RefreshCw, Clock, MoreVertical, ChevronDown, AlertCircle, RotateCcw, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ClickableImage, ClickableVideo } from "@/components/image-lightbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -648,6 +649,8 @@ export default function TicketDetail() {
         </div>
       </div>
 
+      <BusinessHoursBanner show={!isAdmin} />
+
       {originTicketId && originTicketId !== params.id && (
         <div className="flex-shrink-0 mb-2">
           <Button
@@ -1162,6 +1165,87 @@ export default function TicketDetail() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+const BH_DISMISS_KEY = "sh-bh-banner-dismissed";
+
+type BusinessHoursStatus = {
+  enabled: boolean;
+  isOpen: boolean;
+  message: string;
+  timezone: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  nextOpenAt: string | null;
+};
+
+function formatBhNextOpen(iso: string | null, tz: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const safeTz = (() => {
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "UTC"; }
+  })();
+  const dateInTz = formatInTimeZone(d, safeTz, "yyyy-MM-dd");
+  const todayInTz = formatInTimeZone(new Date(), safeTz, "yyyy-MM-dd");
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowInTz = formatInTimeZone(tomorrow, safeTz, "yyyy-MM-dd");
+  const time = formatInTimeZone(d, safeTz, "h:mm a");
+  if (dateInTz === todayInTz) return `today at ${time}`;
+  if (dateInTz === tomorrowInTz) return `tomorrow at ${time}`;
+  return `${formatInTimeZone(d, safeTz, "EEEE")} at ${time}`;
+}
+
+function BusinessHoursBanner({ show }: { show: boolean }) {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(BH_DISMISS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const { data: bhStatus } = useQuery<BusinessHoursStatus>({
+    queryKey: ["/api/business-hours/status"],
+    enabled: show,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  if (!show || dismissed) return null;
+  if (!bhStatus?.enabled || bhStatus.isOpen) return null;
+
+  return (
+    <div
+      className="flex-shrink-0 mb-2 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-3"
+      data-testid="banner-after-hours"
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0 text-xs text-amber-900 dark:text-amber-100">
+          <p data-testid="text-banner-message">{bhStatus.message}</p>
+          {bhStatus.nextOpenAt && (
+            <p className="font-medium mt-0.5" data-testid="text-banner-next-open">
+              We reopen {formatBhNextOpen(bhStatus.nextOpenAt, bhStatus.timezone)}.
+            </p>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 -mr-1 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 flex-shrink-0"
+          onClick={() => {
+            try { sessionStorage.setItem(BH_DISMISS_KEY, "1"); } catch {}
+            setDismissed(true);
+          }}
+          data-testid="button-dismiss-after-hours-banner"
+        >
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

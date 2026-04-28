@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Ticket, Clock, ChevronRight, MessageSquare, Trash2, Tag } from "lucide-react";
+import { Plus, Ticket, Clock, ChevronRight, MessageSquare, Trash2, Tag, AlertTriangle } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
@@ -58,12 +59,48 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={variants[status] || "secondary"} className="text-xs capitalize">{status}</Badge>;
 }
 
+type BusinessHoursStatus = {
+  enabled: boolean;
+  isOpen: boolean;
+  message: string;
+  timezone: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  nextOpenAt: string | null;
+};
+
+function formatNextOpen(iso: string | null, tz: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const safeTz = (() => {
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "UTC"; }
+  })();
+  const dateInTz = formatInTimeZone(d, safeTz, "yyyy-MM-dd");
+  const todayInTz = formatInTimeZone(new Date(), safeTz, "yyyy-MM-dd");
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowInTz = formatInTimeZone(tomorrow, safeTz, "yyyy-MM-dd");
+  const time = formatInTimeZone(d, safeTz, "h:mm a");
+  if (dateInTz === todayInTz) return `today at ${time}`;
+  if (dateInTz === tomorrowInTz) return `tomorrow at ${time}`;
+  return `${formatInTimeZone(d, safeTz, "EEEE")} at ${time}`;
+}
+
 export default function TicketsPage() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [warnOpen, setWarnOpen] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const { data: bhStatus } = useQuery<BusinessHoursStatus>({
+    queryKey: ["/api/business-hours/status"],
+    enabled: !isAdmin,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const { data: tickets, isLoading } = useQuery<TicketType[]>({
     queryKey: ["/api/tickets"],
@@ -160,12 +197,55 @@ export default function TicketsPage() {
           </p>
         </div>
         {!isAdmin && (
+          <>
+          <Button
+            data-testid="button-new-ticket"
+            onClick={() => {
+              if (bhStatus?.enabled && !bhStatus.isOpen) {
+                setWarnOpen(true);
+              } else {
+                setDialogOpen(true);
+              }
+            }}
+          >
+            <Plus className="w-4 h-4 mr-1" /> New Ticket
+          </Button>
+
+          <AlertDialog open={warnOpen} onOpenChange={setWarnOpen}>
+            <AlertDialogContent
+              className="w-[calc(100vw-2rem)] sm:max-w-md border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40"
+              data-testid="dialog-after-hours-warning"
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  Outside business hours
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-amber-900/90 dark:text-amber-100/90 space-y-2">
+                  <span className="block" data-testid="text-after-hours-message">{bhStatus?.message}</span>
+                  {bhStatus?.nextOpenAt && (
+                    <span className="block font-medium" data-testid="text-after-hours-next-open">
+                      We reopen {formatNextOpen(bhStatus.nextOpenAt, bhStatus.timezone)}.
+                    </span>
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-after-hours-cancel">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setWarnOpen(false);
+                    setDialogOpen(true);
+                  }}
+                  data-testid="button-after-hours-continue"
+                >
+                  Continue Anyway
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-new-ticket">
-                <Plus className="w-4 h-4 mr-1" /> New Ticket
-              </Button>
-            </DialogTrigger>
             <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Open a Support Ticket</DialogTitle>
@@ -284,6 +364,7 @@ export default function TicketsPage() {
               </Form>
             </DialogContent>
           </Dialog>
+          </>
         )}
       </div>
 

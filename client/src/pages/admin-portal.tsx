@@ -5147,6 +5147,245 @@ function TelegramTab() {
   );
 }
 
+type BusinessHoursAdminPayload = {
+  enabled: boolean;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  afterHoursMessage: string;
+  isOpen: boolean;
+  nextOpenAt: string | null;
+};
+
+const DAY_LABELS: { value: number; label: string; short: string }[] = [
+  { value: 0, label: "Sunday", short: "Sun" },
+  { value: 1, label: "Monday", short: "Mon" },
+  { value: 2, label: "Tuesday", short: "Tue" },
+  { value: 3, label: "Wednesday", short: "Wed" },
+  { value: 4, label: "Thursday", short: "Thu" },
+  { value: 5, label: "Friday", short: "Fri" },
+  { value: 6, label: "Saturday", short: "Sat" },
+];
+
+function getSupportedTimezones(): string[] {
+  try {
+    const anyIntl = Intl as unknown as { supportedValuesOf?: (key: string) => string[] };
+    if (typeof anyIntl.supportedValuesOf === "function") {
+      return anyIntl.supportedValuesOf("timeZone");
+    }
+  } catch {}
+  return [
+    "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Phoenix",
+    "America/Anchorage",
+    "Pacific/Honolulu",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Asia/Tokyo",
+    "Asia/Singapore",
+    "Australia/Sydney",
+  ];
+}
+
+function BusinessHoursTab() {
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(false);
+  const [days, setDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5]));
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [timezone, setTimezone] = useState("America/New_York");
+  const [afterHoursMessage, setAfterHoursMessage] = useState("");
+
+  const { data: settings, isLoading } = useQuery<BusinessHoursAdminPayload>({
+    queryKey: ["/api/admin/business-hours"],
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(!!settings.enabled);
+      setDays(new Set(settings.daysOfWeek));
+      setStartTime(settings.startTime);
+      setEndTime(settings.endTime);
+      setTimezone(settings.timezone);
+      setAfterHoursMessage(settings.afterHoursMessage);
+    }
+  }, [settings]);
+
+  const timezones = useMemo(() => getSupportedTimezones(), []);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: {
+      enabled: boolean;
+      daysOfWeek: number[];
+      startTime: string;
+      endTime: string;
+      timezone: string;
+      afterHoursMessage: string;
+    }) => {
+      const res = await apiRequest("PATCH", "/api/admin/business-hours", payload);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to save");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/business-hours"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/business-hours/status"] });
+      toast({ title: "Business hours saved" });
+    },
+    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="space-y-3"><Skeleton className="h-64 w-full" /></div>;
+
+  const toggleDay = (d: number) => {
+    setDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+  };
+
+  const startMin = (() => { const [h, m] = startTime.split(":").map(Number); return h * 60 + m; })();
+  const endMin = (() => { const [h, m] = endTime.split(":").map(Number); return h * 60 + m; })();
+  const hoursInvalid = startMin >= endMin;
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" /> Business Hours
+            {settings?.enabled && (
+              <Badge variant={settings.isOpen ? "default" : "secondary"} className="ml-2 text-xs" data-testid="badge-bh-status">
+                {settings.isOpen ? "Currently open" : "Currently closed"}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <p className="text-sm font-medium">Enable business hours</p>
+              <p className="text-xs text-muted-foreground">
+                When enabled, customers see an after-hours warning when opening or replying to tickets outside the configured hours.
+              </p>
+            </div>
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              data-testid="switch-bh-enabled"
+            />
+          </div>
+
+          <div className="rounded-md border p-3 space-y-3">
+            <p className="text-sm font-medium">Business days</p>
+            <div className="flex flex-wrap gap-3">
+              {DAY_LABELS.map((d) => (
+                <div key={d.value} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`bh-day-${d.value}`}
+                    checked={days.has(d.value)}
+                    onCheckedChange={() => toggleDay(d.value)}
+                    data-testid={`checkbox-bh-day-${d.value}`}
+                  />
+                  <Label htmlFor={`bh-day-${d.value}`} className="text-sm font-normal cursor-pointer">
+                    {d.short}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="bh-start">Open time</Label>
+              <Input
+                id="bh-start"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                data-testid="input-bh-start-time"
+              />
+            </div>
+            <div>
+              <Label htmlFor="bh-end">Close time</Label>
+              <Input
+                id="bh-end"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                data-testid="input-bh-end-time"
+              />
+            </div>
+          </div>
+          {hoursInvalid && (
+            <p className="text-xs text-destructive" data-testid="text-bh-hours-error">
+              Open time must be earlier than close time. Hours that wrap past midnight aren't supported.
+            </p>
+          )}
+
+          <div>
+            <Label htmlFor="bh-tz">Timezone</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger id="bh-tz" data-testid="select-bh-timezone">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {timezones.map((tz) => (
+                  <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="bh-msg">After-hours message</Label>
+            <Textarea
+              id="bh-msg"
+              value={afterHoursMessage}
+              onChange={(e) => setAfterHoursMessage(e.target.value)}
+              maxLength={2000}
+              rows={4}
+              data-testid="textarea-bh-message"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Customers see this in the warning popup and the in-ticket banner. The "we reopen ..." line is added automatically based on the next business day.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() =>
+                saveMutation.mutate({
+                  enabled,
+                  daysOfWeek: Array.from(days).sort((a, b) => a - b),
+                  startTime,
+                  endTime,
+                  timezone,
+                  afterHoursMessage: afterHoursMessage.trim(),
+                })
+              }
+              disabled={saveMutation.isPending || hoursInvalid}
+              data-testid="button-save-business-hours"
+            >
+              {saveMutation.isPending ? "Saving..." : "Save Settings"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPortal() {
   const { isAdmin, isMasterAdmin, hasPermission } = useAuth();
   const [, navigate] = useLocation();
@@ -5197,6 +5436,7 @@ export default function AdminPortal() {
     { key: "monitoring", label: "URL Monitoring", icon: Globe, color: "text-lime-500", bg: "bg-lime-500/10" },
     { key: "logs", label: "Logs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" },
     { key: "telegram", label: "Telegram", icon: Send, color: "text-blue-400", bg: "bg-blue-400/10" },
+    { key: "business-hours", label: "Business Hours", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
     { key: "admin-management", label: "Admin Management", icon: Crown, color: "text-yellow-500", bg: "bg-yellow-500/10", masterOnly: true },
   ];
 
@@ -5229,6 +5469,7 @@ export default function AdminPortal() {
       case "monitoring": return <MonitoringTab canManage={canManageSection("monitoring")} />;
       case "logs": return <LogsTab />;
       case "telegram": return <TelegramTab />;
+      case "business-hours": return <BusinessHoursTab />;
       case "admin-management": return isMasterAdmin ? <AdminManagementTab /> : null;
       default: return null;
     }

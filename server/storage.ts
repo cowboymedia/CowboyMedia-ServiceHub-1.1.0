@@ -34,7 +34,9 @@ import {
   type CommunityReaction, type InsertCommunityReaction,
   type ChatWordFilter,
   type TelegramSettings,
-  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications, communityMessages, communityReactions, chatWordFilters, telegramSettings,
+  type BusinessHours,
+  type UpdateBusinessHoursData,
+  users, services, serviceAlerts, alertUpdates, newsStories, tickets, ticketMessages, privateMessages, ticketNotifications, pushSubscriptions, quickResponses, reportRequests, reportNotifications, contentNotifications, serviceUpdates, hiddenServiceUpdates, emailTemplates, adminRoles, ticketCategories, adminChatThreads, adminChatParticipants, adminChatMessages, broadcastMessages, broadcastRecipients, ticketTransfers, adminActivityLogs, downloads, passwordResetTokens, urlMonitors, monitorIncidents, messageThreads, threadMessages, userNotifications, communityMessages, communityReactions, chatWordFilters, telegramSettings, businessHours,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull, sql, inArray } from "drizzle-orm";
@@ -229,6 +231,8 @@ export interface IStorage {
 
   getTelegramSettings(): Promise<TelegramSettings | undefined>;
   updateTelegramSettings(data: { chatId?: string | null; enabled?: boolean; sendAlerts?: boolean; sendServiceUpdates?: boolean; sendNews?: boolean }): Promise<TelegramSettings>;
+  getBusinessHours(): Promise<BusinessHours>;
+  updateBusinessHours(data: UpdateBusinessHoursData): Promise<BusinessHours>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1168,6 +1172,27 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(telegramSettings).set(patch).where(eq(telegramSettings.id, "singleton")).returning();
     if (updated) return updated;
     const [created] = await db.insert(telegramSettings).values({ id: "singleton", ...patch }).returning();
+    return created;
+  }
+
+  async getBusinessHours(): Promise<BusinessHours> {
+    const [row] = await db.select().from(businessHours).where(eq(businessHours.id, "singleton"));
+    if (row) return row;
+    const [created] = await db.insert(businessHours).values({ id: "singleton" }).returning();
+    return created;
+  }
+
+  async updateBusinessHours(data: UpdateBusinessHoursData): Promise<BusinessHours> {
+    const patch: Record<string, any> = { updatedAt: new Date() };
+    if (data.enabled !== undefined) patch.enabled = data.enabled;
+    if (data.daysOfWeek !== undefined) patch.daysOfWeek = data.daysOfWeek;
+    if (data.startTime !== undefined) patch.startTime = data.startTime;
+    if (data.endTime !== undefined) patch.endTime = data.endTime;
+    if (data.timezone !== undefined) patch.timezone = data.timezone;
+    if (data.afterHoursMessage !== undefined) patch.afterHoursMessage = data.afterHoursMessage;
+    const [updated] = await db.update(businessHours).set(patch).where(eq(businessHours.id, "singleton")).returning();
+    if (updated) return updated;
+    const [created] = await db.insert(businessHours).values({ id: "singleton", ...patch }).returning();
     return created;
   }
 }

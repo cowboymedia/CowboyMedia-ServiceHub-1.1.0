@@ -505,6 +505,34 @@ export const telegramSettings = pgTable("telegram_settings", {
 
 export type TelegramSettings = typeof telegramSettings.$inferSelect;
 
+export const businessHours = pgTable("business_hours", {
+  id: varchar("id").primaryKey().default("singleton"),
+  enabled: boolean("enabled").notNull().default(false),
+  daysOfWeek: integer("days_of_week").array().notNull().default(sql`'{1,2,3,4,5}'::integer[]`),
+  startTime: text("start_time").notNull().default("09:00"),
+  endTime: text("end_time").notNull().default("17:00"),
+  timezone: text("timezone").notNull().default("America/New_York"),
+  afterHoursMessage: text("after_hours_message").notNull().default(
+    "Our support team is currently outside of business hours. You can still submit a ticket and we'll respond as soon as we're back."
+  ),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type BusinessHours = typeof businessHours.$inferSelect;
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const updateBusinessHoursSchema = z.object({
+  enabled: z.boolean().optional(),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  startTime: z.string().regex(HHMM_RE, "Use HH:MM 24-hour format").optional(),
+  endTime: z.string().regex(HHMM_RE, "Use HH:MM 24-hour format").optional(),
+  timezone: z.string().min(1).max(64).optional(),
+  afterHoursMessage: z.string().max(2000).optional(),
+});
+
+export type UpdateBusinessHoursData = z.infer<typeof updateBusinessHoursSchema>;
+
 // Login schema
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),

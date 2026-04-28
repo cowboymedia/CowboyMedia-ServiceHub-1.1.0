@@ -37,6 +37,7 @@ The frontend uses React with Vite, TailwindCSS, and Shadcn UI for a modern aesth
 - **Downloads**: Admin-managed downloadable content for customers.
 - **Email Template Protection**: Prevents overwriting of customized email templates during updates.
 - **Community Chat**: Single-room community chat with anonymous usernames for customers (admins use real names with badge). Telegram-style emoji reactions (👍❤️😂😮😢🔥🎉👎). Real-time via WebSocket. Route: `/community`.
+- **Business Hours / After-Hours Warning**: Singleton `business_hours` config (enabled, daysOfWeek, startTime/endTime as `HH:MM`, IANA timezone, after-hours message). Public `GET /api/business-hours/status` computes `isOpen` and `nextOpenAt` server-side using `date-fns-tz` (DST-safe, no midnight wrap). Admin UI in admin portal (Clock tile). Customers see an amber AlertDialog when clicking "New Ticket" outside hours and a dismissible sticky banner inside ticket detail (sessionStorage key `sh-bh-banner-dismissed`). Frontend renders `nextOpenAt` in the configured business timezone, not browser local. Migration: `migrations/006_business_hours.sql`.
 
 ## External Dependencies
 - **Database**: PostgreSQL
