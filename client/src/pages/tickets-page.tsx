@@ -200,12 +200,22 @@ export default function TicketsPage() {
           <>
           <Button
             data-testid="button-new-ticket"
-            onClick={() => {
-              if (bhStatus?.enabled && !bhStatus.isOpen) {
-                setWarnOpen(true);
-              } else {
-                setDialogOpen(true);
+            onClick={async () => {
+              // Always gate on a fresh status fetch so the warning is reliable
+              // even on the very first click (before useQuery has resolved).
+              try {
+                const fresh = await queryClient.ensureQueryData<BusinessHoursStatus>({
+                  queryKey: ["/api/business-hours/status"],
+                  staleTime: 30_000,
+                });
+                if (fresh?.enabled && !fresh.isOpen) {
+                  setWarnOpen(true);
+                  return;
+                }
+              } catch {
+                // If the status fetch fails, fail open and let the user submit.
               }
+              setDialogOpen(true);
             }}
           >
             <Plus className="w-4 h-4 mr-1" /> New Ticket
