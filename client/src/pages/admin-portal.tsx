@@ -5204,6 +5204,7 @@ function BusinessHoursTab() {
 
   const { data: settings, isLoading } = useQuery<BusinessHoursAdminPayload>({
     queryKey: ["/api/admin/business-hours"],
+    refetchInterval: 30_000,
   });
 
   useEffect(() => {
