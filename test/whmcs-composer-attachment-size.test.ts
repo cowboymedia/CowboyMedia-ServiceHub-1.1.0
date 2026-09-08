@@ -39,6 +39,27 @@ g.requestAnimationFrame = rafImpl;
 g.cancelAnimationFrame = cafImpl;
 w.requestAnimationFrame = rafImpl;
 w.cancelAnimationFrame = cafImpl;
+window.scrollTo = () => {};
+
+Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
+type VvListener = () => void;
+const vvListeners = new Map<string, Set<VvListener>>();
+const visualViewportStub = {
+  height: 800,
+  offsetTop: 0,
+  addEventListener(type: string, cb: VvListener) {
+    if (!vvListeners.has(type)) vvListeners.set(type, new Set());
+    vvListeners.get(type)!.add(cb);
+  },
+  removeEventListener(type: string, cb: VvListener) {
+    vvListeners.get(type)?.delete(cb);
+  },
+};
+Object.defineProperty(window, "visualViewport", { value: visualViewportStub, configurable: true });
+
+function fireViewportResize(): void {
+  for (const cb of vvListeners.get("resize") ?? []) cb();
+}
 
 class ResizeObserverStub implements ResizeObserver {
   observe(): void {}
@@ -180,6 +201,29 @@ function typeDraft(textarea: HTMLTextAreaElement, value: string): Promise<void> 
     textarea.dispatchEvent(new window.Event("input", { bubbles: true }));
   });
 }
+
+test("WHMCS composer uses only panned keyboard bottom occlusion", async () => {
+  visualViewportStub.height = 800;
+  visualViewportStub.offsetTop = 0;
+  const h = await mountThread();
+  try {
+    const composer = findByTestId(h.container, "whmcs-thread-composer") as HTMLElement | null;
+    assert.ok(composer, "WHMCS composer rendered");
+    assert.equal(composer.style.paddingBottom, "", "closed keyboard keeps normal CSS padding");
+
+    visualViewportStub.height = 480;
+    visualViewportStub.offsetTop = 140;
+    await act(async () => fireViewportResize());
+    assert.equal(composer.style.paddingBottom, "180px", "composer gets bottom-edge occlusion, not raw viewport loss");
+
+    visualViewportStub.height = 800;
+    visualViewportStub.offsetTop = 0;
+    await act(async () => fireViewportResize());
+    assert.equal(composer.style.paddingBottom, "", "inline keyboard padding clears on close");
+  } finally {
+    h.cleanup();
+  }
+});
 
 const MB = 1024 * 1024;
 

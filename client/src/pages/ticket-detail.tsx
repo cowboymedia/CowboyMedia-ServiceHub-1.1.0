@@ -1126,6 +1126,7 @@ export default function TicketDetail() {
   return (
     <div
       className="flex flex-col flex-1 min-h-0 overflow-hidden px-3 pt-2 sm:px-6 sm:pt-3"
+      data-testid="ticket-detail-view"
       style={{
         overscrollBehavior: "none",
         paddingBottom: keyboardInset
