@@ -692,12 +692,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               onFocus={() => {
                 if (isAdmin && !aiSuggestCollapsed) setAiSuggestCollapsed(true);
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
               onScroll={syncPlaceholderOverlayScroll}
               placeholder={
                 !canReply

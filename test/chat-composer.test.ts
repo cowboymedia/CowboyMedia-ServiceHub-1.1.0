@@ -310,6 +310,40 @@ test("ChatComposer fires onRequestSend with the typed payload, then clear() rese
   }
 });
 
+test("Enter adds line breaks and only the Send button submits a ticket reply", async () => {
+  const h = await mountComposer();
+  try {
+    const ta = h.textarea();
+    await typeIntoTextarea(ta, "first line");
+
+    const enter = new window.KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => {
+      ta.dispatchEvent(enter);
+    });
+
+    assert.equal(enter.defaultPrevented, false, "Enter keeps native textarea behavior");
+    assert.equal(h.sendCalls.length, 0, "Enter does not send the message");
+
+    // jsdom does not perform the browser's default newline insertion after a
+    // synthetic keydown, so apply the resulting input value explicitly.
+    await typeIntoTextarea(ta, "first line\nsecond line");
+    const sendBtn = findByTestId(h.container, "button-send-message");
+    assert.ok(sendBtn instanceof window.HTMLButtonElement, "send button present");
+    await act(async () => {
+      (sendBtn as HTMLButtonElement).click();
+    });
+
+    assert.equal(h.sendCalls.length, 1, "Send button submits exactly once");
+    assert.equal(h.sendCalls[0].text, "first line\nsecond line");
+  } finally {
+    h.cleanup();
+  }
+});
+
 test("composer shows the attachment's size next to its chip", async () => {
   const h = await mountComposer();
   try {
