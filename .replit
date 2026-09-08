@@ -39,6 +39,10 @@ args = "Start application"
 task = "workflow.run"
 args = "artifacts/mockup-sandbox: Component Preview Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "release-version-labels"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -60,6 +64,17 @@ waitForPort = 23636
 [workflows.workflow.metadata]
 outputType = "console"
 isCanvasWorkflow = true
+
+[[workflows.workflow]]
+name = "release-version-labels"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run release:version-labels"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [userenv]
 

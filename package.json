@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "release:version": "tsx script/release-version.ts",
-    "prebuild": "npm run lint && npm run check && NODE_ENV=test npm run db:migrate && NODE_ENV=test npm run db:check && NODE_ENV=test npm run db:check:columns && NODE_ENV=test npm test",
+    "prebuild": "npm run lint && npm run check && npm run release:version-labels && NODE_ENV=test npm run db:migrate && NODE_ENV=test npm run db:check && NODE_ENV=test npm run db:check:columns && NODE_ENV=test npm test",
     "build": "tsx script/build.ts",
     "lint": "eslint client/src server shared",
     "start": "NODE_ENV=production node dist/index.cjs",
@@ -15,6 +15,7 @@
     "db:migrate": "tsx script/migrate.ts",
     "db:check": "drizzle-kit check",
     "db:check:columns": "tsx script/audit-columns.ts",
+    "release:version-labels": "tsx script/validate-version-labels.ts",
     "test": "NODE_ENV=test tsx script/run-tests.ts"
   },
   "dependencies": {

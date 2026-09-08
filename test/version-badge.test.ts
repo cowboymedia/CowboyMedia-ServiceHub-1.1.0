@@ -127,8 +127,9 @@ test("renders vAPP_VERSION linking to /whats-new", async () => {
   try {
     const el = badge(m.container);
     assert.ok(el, "badge renders");
-    assert.match(el!.textContent ?? "", new RegExp(`v${APP_VERSION.replace(".", "\\.")}`));
-    assert.match(el!.getAttribute("href") ?? "", /^\/whats-new#/);
+    assert.equal(el!.textContent?.trim(), `v${APP_VERSION}`);
+    assert.equal(el!.getAttribute("href"), `/whats-new#version-${APP_VERSION.replaceAll(".", "-")}`);
+    assert.equal(el!.getAttribute("aria-label"), `Version ${APP_VERSION} — see what's new`);
   } finally {
     m.cleanup();
   }
