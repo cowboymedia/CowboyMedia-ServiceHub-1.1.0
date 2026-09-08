@@ -2034,10 +2034,6 @@ export default function CommunityChatPage() {
                     }
                   }
                 }
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  handleSend();
-                }
               }}
               onSelect={(e) => {
                 const el = e.target as HTMLTextAreaElement;
