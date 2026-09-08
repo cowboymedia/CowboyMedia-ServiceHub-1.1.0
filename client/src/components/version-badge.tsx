@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { APP_VERSION, versionAnchor } from "@shared/version";
 import { useAuth } from "@/lib/auth";
 
-// Small always-visible "v9.0" pill next to the header logo. Tapping it opens
+// Small always-visible app-version pill next to the header logo. Tapping it opens
 // the What's New page. When a version's release notes have been published and
 // this device hasn't visited What's New since, a subtle pulsing dot appears —
 // the quiet replacement for the retired "Welcome to version X" popup.

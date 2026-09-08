@@ -2,7 +2,7 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
-// The header "v9.0" version badge — the quiet replacement for the retired
+// The header app-version badge — the quiet replacement for the retired
 // "Welcome to version X" popup. Covers:
 //   1. Badge always renders the APP_VERSION and links to /whats-new.
 //   2. "New" dot shows when the latest PUBLISHED changelog version hasn't
