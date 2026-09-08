@@ -727,6 +727,18 @@ export default function TicketDetail() {
     if (nearBottom) setShowNewMessagesPill(false);
   }, []);
 
+  useEffect(() => {
+    if (keyboardInset <= 0) return;
+
+    // Keep the active reply surface visible after iOS finishes resizing its
+    // visual viewport. This only scrolls the message pane; it never moves the
+    // document or disturbs the typed draft in ChatComposer.
+    const active = document.activeElement;
+    if (!(active instanceof HTMLTextAreaElement) || active.dataset.testid !== "input-message") return;
+    const timer = setTimeout(() => scrollToBottom("auto"), 50);
+    return () => clearTimeout(timer);
+  }, [keyboardInset, scrollToBottom]);
+
   const prevMessageCountRef = useRef(0);
   useEffect(() => {
     const count = messages?.length || 0;
@@ -1119,7 +1131,10 @@ export default function TicketDetail() {
         paddingBottom: keyboardInset
           ? `${keyboardInset}px`
           : "env(safe-area-inset-bottom, 0px)",
-        transition: "padding-bottom 150ms ease-out",
+        // Animating toward the keyboard inset leaves the composer underneath
+        // iOS's accessory bar during the animation. Snap open; only animate
+        // the harmless return to normal safe-area spacing.
+        transition: keyboardInset ? "none" : "padding-bottom 150ms ease-out",
       }}
     >
       <div

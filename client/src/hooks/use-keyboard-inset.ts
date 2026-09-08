@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 
+export function calculateKeyboardInset(
+  layoutViewportHeight: number,
+  visualViewportHeight: number,
+  threshold = 80,
+): number {
+  const keyboard = Math.max(0, layoutViewportHeight - visualViewportHeight);
+  return keyboard > threshold ? keyboard : 0;
+}
+
 // Shared keyboard-inset detection for mobile typing surfaces.
 //
 // When the on-screen keyboard opens, iOS Safari/PWA does NOT shrink the layout
@@ -32,10 +41,13 @@ export function useKeyboardInset(threshold = 80): number {
     if (typeof window === "undefined") return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const onChange = () => {
-      const keyboard = Math.max(0, window.innerHeight - vv.height);
-      const open = keyboard > threshold;
-      setInset(open ? keyboard : 0);
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    let frame: number | null = null;
+
+    const measure = () => {
+      const keyboard = calculateKeyboardInset(window.innerHeight, vv.height, threshold);
+      const open = keyboard > 0;
+      setInset(keyboard);
       // iOS panned the visual viewport (or scrolled the document) to chase the
       // focused input; undo it so fixed elements line up with the padded
       // layout instead of drifting mid-screen.
@@ -43,8 +55,32 @@ export function useKeyboardInset(threshold = 80): number {
         window.scrollTo(0, 0);
       }
     };
+
+    // iOS can report several intermediate visualViewport sizes while opening
+    // the keyboard/accessory bar, and occasionally focus happens before the
+    // first viewport event. Sample now, on the next paint, and after the two
+    // common settling windows so the final keyboard height always wins.
+    const onChange = () => {
+      measure();
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        measure();
+      });
+      for (const delay of [80, 250]) {
+        const timer = setTimeout(() => {
+          timers.delete(timer);
+          measure();
+        }, delay);
+        timers.add(timer);
+      }
+    };
+
     vv.addEventListener("resize", onChange);
     vv.addEventListener("scroll", onChange);
+    window.addEventListener("resize", onChange);
+    document.addEventListener("focusin", onChange);
+    document.addEventListener("focusout", onChange);
     // Rotation changes window.innerHeight without always firing a vv resize
     // first; re-measure so a stale inset can't survive an orientation change.
     window.addEventListener("orientationchange", onChange);
@@ -52,7 +88,12 @@ export function useKeyboardInset(threshold = 80): number {
     return () => {
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
+      window.removeEventListener("resize", onChange);
+      document.removeEventListener("focusin", onChange);
+      document.removeEventListener("focusout", onChange);
       window.removeEventListener("orientationchange", onChange);
+      if (frame !== null) cancelAnimationFrame(frame);
+      for (const timer of timers) clearTimeout(timer);
     };
   }, [threshold]);
 
