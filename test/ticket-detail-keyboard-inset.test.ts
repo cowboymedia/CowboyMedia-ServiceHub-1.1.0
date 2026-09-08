@@ -80,6 +80,9 @@ Object.defineProperty(window, "visualViewport", { value: visualViewportStub, con
 const fireViewportResize = () => {
   for (const cb of vvListeners.get("resize") ?? []) cb();
 };
+const fireOrientationChange = () => {
+  window.dispatchEvent(new window.Event("orientationchange"));
+};
 
 class WebSocketStub {
   static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
@@ -138,7 +141,8 @@ async function flush(): Promise<void> {
   }
 }
 
-test("ticket-detail composer tracks panned iPhone keyboard through delayed resize and close", async () => {
+test("ticket-detail composer tracks panned iPhone keyboard through rotation, delayed resize, and close", async () => {
+  window.innerHeight = 800;
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const container = window.document.createElement("div");
@@ -181,7 +185,19 @@ test("ticket-detail composer tracks panned iPhone keyboard through delayed resiz
     await flush();
     assert.equal(view.style.paddingBottom, "210px", "delayed resize settles to the latest bottom edge");
 
-    visualViewportStub.height = 800;
+    window.innerHeight = 430;
+    visualViewportStub.height = 300;
+    visualViewportStub.offsetTop = 50;
+    await act(async () => fireOrientationChange());
+    await flush();
+    assert.equal(view.style.paddingBottom, "80px", "orientation change immediately uses the landscape bottom edge");
+
+    visualViewportStub.height = 260;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await flush();
+    assert.equal(view.style.paddingBottom, "120px", "orientation sampling settles to the final landscape occlusion");
+
+    visualViewportStub.height = 430;
     visualViewportStub.offsetTop = 0;
     await act(async () => fireViewportResize());
     await flush();

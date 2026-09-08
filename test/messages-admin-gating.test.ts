@@ -112,6 +112,10 @@ function fireViewportResize(): void {
   for (const cb of vvListeners.get("resize") ?? []) cb();
 }
 
+function fireOrientationChange(): void {
+  window.dispatchEvent(new window.Event("orientationchange"));
+}
+
 // The thread chat view opens a reconnecting WebSocket on mount. jsdom has no
 // WebSocket; a stub that never fires events keeps the socket in "connecting"
 // and the component tree stable for the assertions.
@@ -363,7 +367,8 @@ test("admin in a thread sees both the photo attach and the KB attach buttons", a
   }
 });
 
-test("private-message composer tracks panned iPhone keyboard open, delayed resize, and close", async () => {
+test("private-message composer tracks panned iPhone keyboard through rotation, delayed resize, and close", async () => {
+  window.innerHeight = 800;
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const h = await mountMessages(`/messages/${THREAD_ID}`, CUSTOMER_USER);
@@ -383,7 +388,19 @@ test("private-message composer tracks panned iPhone keyboard open, delayed resiz
     await flush();
     assert.equal(view.style.paddingBottom, "210px", "delayed measurement picks up the settled viewport");
 
-    visualViewportStub.height = 800;
+    window.innerHeight = 430;
+    visualViewportStub.height = 300;
+    visualViewportStub.offsetTop = 50;
+    await act(async () => fireOrientationChange());
+    await flush();
+    assert.equal(view.style.paddingBottom, "80px", "rotation immediately realigns to the landscape bottom edge");
+
+    visualViewportStub.height = 260;
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+    await flush();
+    assert.equal(view.style.paddingBottom, "120px", "rotation sampling settles to the final landscape occlusion");
+
+    visualViewportStub.height = 430;
     visualViewportStub.offsetTop = 0;
     await act(async () => fireViewportResize());
     await flush();

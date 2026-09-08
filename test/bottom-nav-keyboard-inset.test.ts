@@ -46,6 +46,7 @@ g.requestAnimationFrame = rafImpl;
 g.cancelAnimationFrame = cafImpl;
 w.requestAnimationFrame = rafImpl;
 w.cancelAnimationFrame = cafImpl;
+window.scrollTo = () => {};
 
 class ResizeObserverStub implements ResizeObserver {
   observe(): void {}
@@ -97,6 +98,10 @@ Object.defineProperty(window, "visualViewport", {
 
 function fireViewportResize(): void {
   for (const cb of vvListeners.get("resize") ?? []) cb();
+}
+
+function fireOrientationChange(): void {
+  window.dispatchEvent(new window.Event("orientationchange"));
 }
 
 g.IS_REACT_ACT_ENVIRONMENT = true;
@@ -213,7 +218,8 @@ async function setKeyboardCoverage(px: number): Promise<void> {
   await flush();
 }
 
-test("BottomNav renders on mobile with keyboard closed and hides while keyboard is open", async () => {
+test("BottomNav stays hidden through rotation while the keyboard is open", async () => {
+  window.innerHeight = 800;
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();
@@ -225,8 +231,29 @@ test("BottomNav renders on mobile with keyboard closed and hides while keyboard 
     await setKeyboardCoverage(300);
     assert.equal(navEl(container), null, "nav must unmount while the on-screen keyboard is open");
 
+    window.innerHeight = 430;
+    visualViewportStub.height = 300;
+    visualViewportStub.offsetTop = 50;
+    await act(async () => {
+      fireOrientationChange();
+    });
+    await flush();
+    assert.equal(navEl(container), null, "nav must remain hidden after rotating with the keyboard open");
+
+    visualViewportStub.height = 260;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    await flush();
+    assert.equal(navEl(container), null, "nav must remain hidden while the rotated viewport settles");
+
     // Keyboard closes again: nav returns.
-    await setKeyboardCoverage(0);
+    visualViewportStub.height = 430;
+    visualViewportStub.offsetTop = 0;
+    await act(async () => {
+      fireViewportResize();
+    });
+    await flush();
     assert.ok(navEl(container), "nav should reappear once the keyboard closes");
   } finally {
     cleanup();
@@ -234,6 +261,7 @@ test("BottomNav renders on mobile with keyboard closed and hides while keyboard 
 });
 
 test("sub-threshold viewport shrink (browser chrome jitter) does not hide the nav", async () => {
+  window.innerHeight = 800;
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();
@@ -258,6 +286,7 @@ test("iOS visual-viewport pan (offsetTop) must not cancel keyboard detection", a
   w.scrollTo = scrollToImpl;
   Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
 
+  window.innerHeight = 800;
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();
