@@ -34,6 +34,11 @@ test("community chat sends only from the Send button", () => {
     /handleSend\s*\(/,
     "Enter in the textarea must not submit the message",
   );
+  assert.match(
+    handler,
+    /handleSendButtonOnlyComposerKeyDown\(e\)/,
+    "community chat should reuse the shared send-button-only keyboard policy",
+  );
   assert.match(sendButton, /onClick=\{handleSend\}/);
   assert.match(sendButton, /data-testid="button-send-community-message"/);
 });

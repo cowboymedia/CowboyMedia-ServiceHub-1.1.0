@@ -1,3 +1,4 @@
+import { handleSendButtonOnlyComposerKeyDown } from "@/lib/chat-composer-keyboard";
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { hapticLight } from "@/lib/haptics";
 import { useQuery } from "@tanstack/react-query";
@@ -2034,6 +2035,7 @@ export default function CommunityChatPage() {
                     }
                   }
                 }
+                handleSendButtonOnlyComposerKeyDown(e);
               }}
               onSelect={(e) => {
                 const el = e.target as HTMLTextAreaElement;

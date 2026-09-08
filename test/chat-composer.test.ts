@@ -315,6 +315,11 @@ test("Enter adds line breaks and only the Send button submits a ticket reply", a
   try {
     const ta = h.textarea();
     await typeIntoTextarea(ta, "first line");
+    let bubbledEnterCount = 0;
+    const countBubbledEnter = (event: KeyboardEvent) => {
+      if (event.key === "Enter") bubbledEnterCount += 1;
+    };
+    window.document.addEventListener("keydown", countBubbledEnter);
 
     const enter = new window.KeyboardEvent("keydown", {
       key: "Enter",
@@ -324,8 +329,10 @@ test("Enter adds line breaks and only the Send button submits a ticket reply", a
     await act(async () => {
       ta.dispatchEvent(enter);
     });
+    window.document.removeEventListener("keydown", countBubbledEnter);
 
     assert.equal(enter.defaultPrevented, false, "Enter keeps native textarea behavior");
+    assert.equal(bubbledEnterCount, 0, "shared composer policy contains Enter in the textarea");
     assert.equal(h.sendCalls.length, 0, "Enter does not send the message");
 
     // jsdom does not perform the browser's default newline insertion after a

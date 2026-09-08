@@ -10,6 +10,7 @@ import { Paperclip, X, Send, Lock, Sparkles, Loader2, AlertTriangle, FileText, F
 import { QuickResponsePicker } from "@/components/quick-response-picker";
 import { KbArticlePickerDialog, type KbArticleRef } from "@/components/kb-article-picker-dialog";
 import { apiRequest } from "@/lib/queryClient";
+import { handleSendButtonOnlyComposerKeyDown } from "@/lib/chat-composer-keyboard";
 import { useToast } from "@/hooks/use-toast";
 import {
   findUnfilledPlaceholders,
@@ -692,6 +693,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               onFocus={() => {
                 if (isAdmin && !aiSuggestCollapsed) setAiSuggestCollapsed(true);
               }}
+              onKeyDown={handleSendButtonOnlyComposerKeyDown}
               onScroll={syncPlaceholderOverlayScroll}
               placeholder={
                 !canReply
