@@ -219,7 +219,7 @@ async function setKeyboardCoverage(px: number): Promise<void> {
 }
 
 test("BottomNav stays hidden through rotation while the keyboard is open", async () => {
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();
@@ -231,7 +231,7 @@ test("BottomNav stays hidden through rotation while the keyboard is open", async
     await setKeyboardCoverage(300);
     assert.equal(navEl(container), null, "nav must unmount while the on-screen keyboard is open");
 
-    window.innerHeight = 430;
+    Object.defineProperty(window, "innerHeight", { value: 430, configurable: true, writable: true });
     visualViewportStub.height = 300;
     visualViewportStub.offsetTop = 50;
     await act(async () => {
@@ -261,7 +261,7 @@ test("BottomNav stays hidden through rotation while the keyboard is open", async
 });
 
 test("sub-threshold viewport shrink (browser chrome jitter) does not hide the nav", async () => {
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();
@@ -286,7 +286,7 @@ test("iOS visual-viewport pan (offsetTop) must not cancel keyboard detection", a
   w.scrollTo = scrollToImpl;
   Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
 
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const { container, cleanup } = await mountNav();

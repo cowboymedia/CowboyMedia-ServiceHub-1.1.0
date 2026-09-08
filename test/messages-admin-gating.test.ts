@@ -368,7 +368,7 @@ test("admin in a thread sees both the photo attach and the KB attach buttons", a
 });
 
 test("private-message composer tracks panned iPhone keyboard through rotation, delayed resize, and close", async () => {
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const h = await mountMessages(`/messages/${THREAD_ID}`, CUSTOMER_USER);
@@ -388,7 +388,7 @@ test("private-message composer tracks panned iPhone keyboard through rotation, d
     await flush();
     assert.equal(view.style.paddingBottom, "210px", "delayed measurement picks up the settled viewport");
 
-    window.innerHeight = 430;
+    Object.defineProperty(window, "innerHeight", { value: 430, configurable: true, writable: true });
     visualViewportStub.height = 300;
     visualViewportStub.offsetTop = 50;
     await act(async () => fireOrientationChange());

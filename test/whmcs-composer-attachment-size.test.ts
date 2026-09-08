@@ -207,7 +207,7 @@ function typeDraft(textarea: HTMLTextAreaElement, value: string): Promise<void> 
 }
 
 test("WHMCS composer settles to the new bottom occlusion after rotating with the keyboard open", async () => {
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const h = await mountThread();
@@ -221,7 +221,7 @@ test("WHMCS composer settles to the new bottom occlusion after rotating with the
     await act(async () => fireViewportResize());
     assert.equal(composer.style.paddingBottom, "180px", "composer gets bottom-edge occlusion, not raw viewport loss");
 
-    window.innerHeight = 430;
+    Object.defineProperty(window, "innerHeight", { value: 430, configurable: true, writable: true });
     visualViewportStub.height = 300;
     visualViewportStub.offsetTop = 50;
     await act(async () => fireOrientationChange());

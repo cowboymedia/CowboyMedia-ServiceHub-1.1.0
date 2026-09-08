@@ -142,7 +142,7 @@ async function flush(): Promise<void> {
 }
 
 test("ticket-detail composer tracks panned iPhone keyboard through rotation, delayed resize, and close", async () => {
-  window.innerHeight = 800;
+  Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
   visualViewportStub.height = 800;
   visualViewportStub.offsetTop = 0;
   const container = window.document.createElement("div");
@@ -185,7 +185,7 @@ test("ticket-detail composer tracks panned iPhone keyboard through rotation, del
     await flush();
     assert.equal(view.style.paddingBottom, "210px", "delayed resize settles to the latest bottom edge");
 
-    window.innerHeight = 430;
+    Object.defineProperty(window, "innerHeight", { value: 430, configurable: true, writable: true });
     visualViewportStub.height = 300;
     visualViewportStub.offsetTop = 50;
     await act(async () => fireOrientationChange());
