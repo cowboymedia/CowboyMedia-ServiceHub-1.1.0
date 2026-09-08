@@ -37,7 +37,7 @@
 - [WHMCS added-service detection](whmcs-added-service-detection.md) — "added" (direct WHMCS order, first sighting, no marker) vs "ready" (store order, pending->active); "added" consumes the matching pending order so neither double-notifies; per-customer baseline gate.
 - [Idempotency client-abort semantics](idempotency-client-abort.md) — money-write idempotency must NOT free a claimed key on early socket close (client timeout); handler keeps running, abandoning lets a retry double-charge.
 - [jsdom calc() serialization](jsdom-calc-serialization.md) — cssstyle re-emits calc() (e.g. "- 2rem" → "+ 2rem"); round-trip expected strings through a scratch element, don't assert literals.
-- [iOS keyboard-inset vs viewport pan](ios-keyboard-inset-pan.md) — detect keyboard as innerHeight - vv.height only; subtracting offsetTop cancels detection exactly when iOS pans; un-pan via scrollTo(0,0).
+- [iOS keyboard-inset vs viewport pan](ios-keyboard-inset-pan.md) — use bottom-edge occlusion for padding but retain a nonzero open signal when iOS pan consumes the inset; un-pan via scrollTo(0,0).
 - [Idempotency async-store listener timing](idempotency-async-store-listener-timing.md) — when the dedup store goes DB-backed (async), attach res close/finish listeners synchronously before the claim or a fast abort is missed → stale pending → permanent 409.
 - [Design subagent diff verification](design-subagent-diff-verification.md) — subagents can "complete" with no changes or orphan a function header; always git diff --stat + tsc + testid comm-check after each wave.
 - [Subagent dependency drift](subagent-dependency-drift.md) — subagents can silently bump package.json (TS 5.6→5.9 broke tsc in untouched files); audit dep diffs after every wave.

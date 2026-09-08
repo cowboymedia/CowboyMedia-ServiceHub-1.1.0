@@ -291,7 +291,21 @@ test("chat container pads by the keyboard inset while the keyboard is open and u
       "container must be padded by the keyboard inset while typing",
     );
 
+    // iOS may then pan the visual viewport downward while retaining the same
+    // height. Only the remaining bottom occlusion should become padding.
+    visualViewportStub.offsetTop = 140;
+    await act(async () => {
+      fireViewportResize();
+    });
+    await flush();
+    assert.equal(
+      pageRoot().style.paddingBottom,
+      "180px",
+      "viewport top displacement must not become extra space above the keyboard",
+    );
+
     // Keyboard height changes (e.g. suggestion bar toggles): padding follows.
+    visualViewportStub.offsetTop = 0;
     await setKeyboardCoverage(260);
     assert.equal(
       pageRoot().style.paddingBottom,

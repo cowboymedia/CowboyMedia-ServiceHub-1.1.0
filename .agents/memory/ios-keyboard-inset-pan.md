@@ -1,10 +1,10 @@
 ---
 name: iOS keyboard-inset detection vs viewport pan
-description: Why keyboard detection must ignore visualViewport.offsetTop and un-pan with scrollTo(0,0)
+description: Measure iOS keyboard occlusion from the visual viewport bottom edge and un-pan the document
 ---
 
-**Rule:** Detect the on-screen keyboard as `window.innerHeight - visualViewport.height` only. Never subtract `visualViewport.offsetTop`. Re-measure on focus plus immediate/next-frame/delayed viewport settling, and un-pan with `window.scrollTo(0, 0)` when open.
+**Rule:** Detect keyboard opening from `window.innerHeight - visualViewport.height`, then derive padding from the visual viewport bottom edge by subtracting `offsetTop`. If iOS pan consumes the full padding inset, retain a minimal nonzero open signal. Re-measure across viewport settling and un-pan with `window.scrollTo(0, 0)`.
 
-**Why:** iOS pans the visual viewport down (offsetTop grows by ~the keyboard height) to chase the focused input. It can also open the keyboard and predictive/accessory bar in several viewport stages, sometimes focusing before the first resize event. A single measurement can therefore leave the composer hidden.
+**Why:** iOS resizes and pans the visual viewport in stages. Ignoring a retained positive `offsetTop` counts top displacement as keyboard coverage, over-padding the layout and leaving the composer floating far above the keyboard.
 
-**How to apply:** Keep one shared detector for all typing surfaces. Consumers should snap to the open inset (not animate underneath the keyboard), re-pin their local scroll pane after inset changes, and retain the normal close transition. Android `interactive-widget=resizes-content` is safe because both heights shrink together.
+**How to apply:** Keep one shared detector for all typing surfaces. Threshold raw viewport loss, use bottom-edge occlusion for padding, clamp to a 1px open sentinel after full pan, snap open, re-pin local scroll, and retain the close transition. Android `interactive-widget=resizes-content` stays safe because both heights shrink together.

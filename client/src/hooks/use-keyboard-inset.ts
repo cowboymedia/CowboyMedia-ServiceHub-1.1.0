@@ -4,9 +4,19 @@ export function calculateKeyboardInset(
   layoutViewportHeight: number,
   visualViewportHeight: number,
   threshold = 80,
+  visualViewportOffsetTop = 0,
 ): number {
-  const keyboard = Math.max(0, layoutViewportHeight - visualViewportHeight);
-  return keyboard > threshold ? keyboard : 0;
+  const normalizedOffsetTop = Number.isFinite(visualViewportOffsetTop)
+    ? Math.max(0, visualViewportOffsetTop)
+    : 0;
+  const viewportLoss = Math.max(0, layoutViewportHeight - visualViewportHeight);
+  if (viewportLoss <= threshold) return 0;
+
+  const bottomOcclusion = Math.max(0, viewportLoss - normalizedOffsetTop);
+  // Keep a non-zero "keyboard open" signal when iOS pans the visual viewport
+  // by the full occluded height. Consumers such as BottomNav use > 0 to hide,
+  // while padding consumers receive only a harmless 1px in this state.
+  return Math.max(1, bottomOcclusion);
 }
 
 // Shared keyboard-inset detection for mobile typing surfaces.
@@ -20,14 +30,12 @@ export function calculateKeyboardInset(
 // container by that amount, so the composer sits directly above the keyboard
 // while the page itself never scrolls.
 //
-// The measurement: window.innerHeight - vv.height is the keyboard height
-// (plus any browser chrome). Crucially, vv.offsetTop must NOT be subtracted
-// from the detection: when iOS *pans* the visual viewport down to reveal the
-// focused input, offsetTop grows by roughly the keyboard height and would
-// cancel the measurement to ~0 — the exact moment compensation is needed most
-// (nav floats mid-screen, no padding applied). Instead, when a keyboard is
-// detected while iOS has panned/scrolled, we actively un-pan via
-// window.scrollTo(0, 0) so the layout snaps back and the padding does its job.
+// The measurement uses the visual viewport's bottom edge:
+// window.innerHeight - (vv.height + vv.offsetTop). iOS can pan the visual
+// viewport down while focusing an input; counting that top displacement as
+// keyboard coverage over-pads the layout and leaves a large blank gap above
+// the keyboard. We still actively un-pan the document when an inset is
+// detected, then the staged measurements below refine the settled value.
 //
 // A threshold (default 80px) filters out browser-chrome jitter so only a real
 // keyboard registers. On Android Chrome with `interactive-widget=
@@ -45,13 +53,17 @@ export function useKeyboardInset(threshold = 80): number {
     let frame: number | null = null;
 
     const measure = () => {
-      const keyboard = calculateKeyboardInset(window.innerHeight, vv.height, threshold);
-      const open = keyboard > 0;
+      const keyboard = calculateKeyboardInset(
+        window.innerHeight,
+        vv.height,
+        threshold,
+        vv.offsetTop,
+      );
       setInset(keyboard);
       // iOS panned the visual viewport (or scrolled the document) to chase the
       // focused input; undo it so fixed elements line up with the padded
       // layout instead of drifting mid-screen.
-      if (open && (vv.offsetTop > 0 || window.scrollY > 0)) {
+      if (keyboard > 0 && (vv.offsetTop > 0 || window.scrollY > 0)) {
         window.scrollTo(0, 0);
       }
     };
