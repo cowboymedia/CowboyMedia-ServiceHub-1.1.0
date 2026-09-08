@@ -186,6 +186,16 @@ function serializedMaxHeight(source: string): string {
 
 async function setKeyboardCoverage(px: number): Promise<void> {
   visualViewportStub.height = 800 - px;
+  visualViewportStub.offsetTop = 0;
+  await act(async () => {
+    fireViewportResize();
+  });
+  await flush();
+}
+
+async function setPannedKeyboardViewport(height: number, offsetTop: number): Promise<void> {
+  visualViewportStub.height = height;
+  visualViewportStub.offsetTop = offsetTop;
   await act(async () => {
     fireViewportResize();
   });
@@ -221,6 +231,30 @@ test("bare DialogContent shifts up and caps height while the keyboard is open, a
       "dialog height capped to the space above the keyboard",
     );
     assert.equal(content.style.overflowY, "auto", "capped dialog scrolls internally");
+
+    await setPannedKeyboardViewport(480, 140);
+    assert.equal(
+      content.style.top,
+      "calc(50% - 90px)",
+      "dialog shift follows actual bottom occlusion after iOS pans the viewport",
+    );
+    assert.equal(
+      content.style.maxHeight,
+      serializedMaxHeight("calc(100dvh - 180px - 2rem)"),
+      "viewport pan must not be counted as extra keyboard coverage",
+    );
+
+    await setPannedKeyboardViewport(480, 320);
+    assert.equal(
+      content.style.top,
+      "calc(50% - 1px)",
+      "full pan retains a keyboard-open signal without a large upward shift",
+    );
+    assert.equal(
+      content.style.maxHeight,
+      serializedMaxHeight("calc(100dvh - 1px - 2rem)"),
+      "full pan adds only the harmless keyboard-open sentinel",
+    );
 
     await setKeyboardCoverage(0);
     assert.equal(content.style.top, "", "shift removed once the keyboard closes");
@@ -272,6 +306,18 @@ test("bare AlertDialogContent gets the same keyboard shift and reset", async () 
       "alert dialog height capped above the keyboard",
     );
     assert.equal(content.style.overflowY, "auto", "capped alert dialog scrolls internally");
+
+    await setPannedKeyboardViewport(480, 140);
+    assert.equal(
+      content.style.top,
+      "calc(50% - 90px)",
+      "alert dialog follows remaining bottom occlusion after viewport pan",
+    );
+    assert.equal(
+      content.style.maxHeight,
+      serializedMaxHeight("calc(100dvh - 180px - 2rem)"),
+      "alert dialog does not turn viewport pan into extra keyboard spacing",
+    );
 
     await setKeyboardCoverage(0);
     assert.equal(content.style.top, "", "shift removed once the keyboard closes");

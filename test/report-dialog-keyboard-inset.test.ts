@@ -264,6 +264,16 @@ function serializedMaxHeight(source: string): string {
 
 async function setKeyboardCoverage(px: number): Promise<void> {
   visualViewportStub.height = 800 - px;
+  visualViewportStub.offsetTop = 0;
+  await act(async () => {
+    fireViewportResize();
+  });
+  await flush();
+}
+
+async function setPannedKeyboardViewport(height: number, offsetTop: number): Promise<void> {
+  visualViewportStub.height = height;
+  visualViewportStub.offsetTop = offsetTop;
   await act(async () => {
     fireViewportResize();
   });
@@ -296,8 +306,37 @@ test("open report dialog shifts up and caps its height while the keyboard is ope
     );
     assert.equal(dialog.style.overflowY, "auto", "capped dialog must scroll internally");
 
+    // iOS pans the visual viewport while the keyboard remains open. Position
+    // from the actual bottom occlusion, not the raw viewport-height loss.
+    await setPannedKeyboardViewport(480, 140);
+    assert.equal(
+      dialog.style.top,
+      "calc(50% - 90px)",
+      "dialog shift must exclude the viewport's positive top offset",
+    );
+    assert.equal(
+      dialog.style.maxHeight,
+      serializedMaxHeight("calc(100dvh - 180px - 2rem)"),
+      "dialog cap must follow the remaining bottom occlusion",
+    );
+    assert.equal(dialog.style.overflowY, "auto", "partially panned form remains internally scrollable");
+
+    // A full pan leaves no bottom occlusion, but the hook deliberately keeps a
+    // 1px keyboard-open sentinel so open-state consumers remain active.
+    await setPannedKeyboardViewport(480, 320);
+    assert.equal(
+      dialog.style.top,
+      "calc(50% - 1px)",
+      "full pan must retain the open signal without creating a large gap",
+    );
+    assert.equal(
+      dialog.style.maxHeight,
+      serializedMaxHeight("calc(100dvh - 1px - 2rem)"),
+      "full pan must use only the harmless sentinel in the height cap",
+    );
+
     // Keyboard height changes (e.g. suggestion bar toggles): shift follows.
-    await setKeyboardCoverage(260);
+    await setPannedKeyboardViewport(540, 0);
     assert.equal(
       dialog.style.top,
       "calc(50% - 130px)",
@@ -313,7 +352,22 @@ test("open report dialog shifts up and caps its height while the keyboard is ope
     await setKeyboardCoverage(0);
     assert.equal(dialog.style.top, "", "top shift must be removed once the keyboard closes");
     assert.equal(dialog.style.maxHeight, "", "maxHeight cap must be removed once the keyboard closes");
+
+    // A rotation-like viewport transition after close must stay reset rather
+    // than reviving the stale keyboard placement.
+    Object.defineProperty(window, "innerHeight", { value: 390, configurable: true, writable: true });
+    visualViewportStub.height = 390;
+    visualViewportStub.offsetTop = 0;
+    await act(async () => {
+      window.dispatchEvent(new window.Event("orientationchange"));
+    });
+    await flush();
+    assert.equal(dialog.style.top, "", "rotation-like reset must keep normal dialog placement");
+    assert.equal(dialog.style.maxHeight, "", "rotation-like reset must not retain a stale cap");
   } finally {
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true, writable: true });
+    visualViewportStub.height = 800;
+    visualViewportStub.offsetTop = 0;
     cleanup();
   }
 });
