@@ -149,6 +149,7 @@ const USERS = [
 
 // Set per-test before mounting so /api/auth/me returns the right identity.
 let currentUser: typeof CUSTOMER_USER | typeof ADMIN_USER | null = null;
+const sentThreadMessages: FormData[] = [];
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -158,7 +159,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 const realFetch = globalThis.fetch;
-g.fetch = async (input: unknown): Promise<Response> => {
+g.fetch = async (input: unknown, init?: RequestInit): Promise<Response> => {
   const url = typeof input === "string" ? input : String((input as { url?: string }).url ?? input);
   const pathname = url.split("?")[0];
 
@@ -170,7 +171,13 @@ g.fetch = async (input: unknown): Promise<Response> => {
   if (pathname === "/api/private-messages") return jsonResponse([]);
   if (pathname === "/api/admin/private-messages/sent") return jsonResponse(LEGACY_SENT);
   if (pathname === "/api/admin/users") return jsonResponse(USERS);
-  if (/^\/api\/message-threads\/[^/]+\/messages$/.test(pathname)) return jsonResponse([]);
+  if (/^\/api\/message-threads\/[^/]+\/messages$/.test(pathname)) {
+    if (init?.method === "POST" && init.body instanceof FormData) {
+      sentThreadMessages.push(init.body);
+      return jsonResponse({ id: "message-new" });
+    }
+    return jsonResponse([]);
+  }
   if (/^\/api\/message-threads\/[^/]+\/read$/.test(pathname)) return jsonResponse({});
   if (/^\/api\/message-threads\/[^/]+$/.test(pathname)) return jsonResponse(THREAD);
 
@@ -210,6 +217,14 @@ async function flush(): Promise<void> {
       await new Promise<void>((r) => setTimeout(r, 0));
     });
   }
+}
+
+async function typeIntoTextarea(textarea: HTMLTextAreaElement, value: string): Promise<void> {
+  const prototype = Object.getPrototypeOf(textarea) as HTMLTextAreaElement;
+  Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(textarea, value);
+  await act(async () => {
+    textarea.dispatchEvent(new window.Event("input", { bubbles: true }));
+  });
 }
 
 interface MountResult {
@@ -322,6 +337,46 @@ test("admin in a thread sees both the photo attach and the KB attach buttons", a
     assert.ok(has("thread-chat-view"), "thread chat view rendered");
     assert.ok(has("button-attach-thread-image"), "admin composer has the photo attach button");
     assert.ok(has("button-attach-thread-kb"), "admin composer has the KB attach button");
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("Enter adds line breaks and only the Send button submits a private message", async () => {
+  sentThreadMessages.length = 0;
+  const h = await mountMessages(`/messages/${THREAD_ID}`, CUSTOMER_USER);
+  try {
+    const textarea = h.container.querySelector('[data-testid="input-thread-message"]');
+    const sendButton = h.container.querySelector('[data-testid="button-send-thread-message"]');
+    assert.ok(textarea instanceof window.HTMLTextAreaElement, "message textarea rendered");
+    assert.ok(sendButton instanceof window.HTMLButtonElement, "Send button rendered");
+
+    await typeIntoTextarea(textarea, "first line");
+
+    for (const shiftKey of [false, true]) {
+      const enter = new window.KeyboardEvent("keydown", {
+        key: "Enter",
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => {
+        textarea.dispatchEvent(enter);
+      });
+      assert.equal(enter.defaultPrevented, false, `${shiftKey ? "Shift+Enter" : "Enter"} keeps native textarea behavior`);
+      assert.equal(sentThreadMessages.length, 0, `${shiftKey ? "Shift+Enter" : "Enter"} does not send`);
+    }
+
+    // jsdom does not perform the browser's native newline insertion after a
+    // synthetic keydown, so apply the resulting multiline value explicitly.
+    await typeIntoTextarea(textarea, "first line\nsecond line");
+    await act(async () => {
+      sendButton.click();
+    });
+    await flush();
+
+    assert.equal(sentThreadMessages.length, 1, "Send button submits exactly once");
+    assert.equal(sentThreadMessages[0].get("body"), "first line\nsecond line");
   } finally {
     h.cleanup();
   }
