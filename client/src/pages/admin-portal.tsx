@@ -6904,7 +6904,7 @@ interface ChatThread {
   lastMessage: ChatMessage | null;
 }
 
-function AdminChatTab({ initialThreadId }: { initialThreadId?: string | null }) {
+export function AdminChatTab({ initialThreadId }: { initialThreadId?: string | null }) {
   const { user, isMasterAdmin } = useAuth();
   const { toast } = useToast();
   const { sendMessage, subscribe } = useGlobalSocket();
